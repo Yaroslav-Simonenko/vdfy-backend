@@ -132,7 +132,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
 });
 
 // 3. ОТРИМАННЯ СПИСКУ ВІДЕО (ОСЬ ЦЕ БУЛО ВИДАЛЕНО!)
-app.get('/api/my-videos', verifyToken, async (req, res) => {
+app.get('/api/videos', verifyToken, async (req, res) => {
     try {
         const userId = req.user.uid;
         // Шукаємо файли в папці користувача
