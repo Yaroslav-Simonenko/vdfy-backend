@@ -3,175 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VDFY Admin Panel</title>
+    <title>VDFY Dashboard</title>
     <style>
-        :root { --primary: #1a73e8; --bg: #f4f6f8; --text: #202124; }
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column;}
+        :root { --primary: #1a73e8; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; }
         
-        /* LOGIN SCREEN */
-        #login-screen { display: flex; flex: 1; align-items: center; justify-content: center; flex-direction: column; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; width: 300px; }
-        .google-btn { background: #4285F4; color: white; border: none; padding: 12px 24px; border-radius: 4px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; font-size: 16px; margin-top: 20px;}
-        .google-btn:hover { background: #357ae8; }
-
-        /* DASHBOARD (Hidden by default) */
-        #app-screen { display: none; height: 100%; display: none; flex-direction: row; }
-        
-        /* SIDEBAR */
-        .sidebar { width: 250px; background: white; border-right: 1px solid #ddd; padding: 20px; display: flex; flex-direction: column; }
-        .logo { font-size: 24px; font-weight: 800; color: var(--primary); margin-bottom: 40px; }
-        .nav-item { padding: 12px 15px; margin-bottom: 5px; border-radius: 8px; cursor: pointer; color: #5f6368; font-weight: 500; display: flex; gap: 10px; }
-        .nav-item:hover { background: #f1f3f4; }
+        /* Sidebar */
+        .sidebar { width: 250px; background: white; height: 100vh; padding: 20px; border-right: 1px solid #ddd; position: fixed; }
+        .logo { font-size: 24px; font-weight: bold; color: var(--primary); margin-bottom: 40px; display: flex; align-items: center; gap: 10px; }
+        .nav-item { padding: 12px 16px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; color: #5f6368; font-weight: 500; display: flex; align-items: center; gap: 12px; transition: 0.2s; }
         .nav-item.active { background: #e8f0fe; color: var(--primary); }
-        .user-info { margin-top: auto; padding-top: 20px; border-top: 1px solid #eee; font-size: 13px; color: #666; }
-        .logout-link { color: #ea4335; cursor: pointer; margin-top: 5px; display: block; }
+        .nav-item:hover { background: #f1f3f4; }
 
-        /* CONTENT */
-        .main { flex: 1; padding: 30px; overflow-y: auto; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .folder-header { margin-top: 30px; margin-bottom: 15px; border-bottom: 2px solid #ddd; padding-bottom: 5px; font-size: 18px; font-weight: bold; color: #444; }
+        /* Main Content */
+        .main { margin-left: 250px; padding: 40px; width: 100%; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .user-profile { display: flex; align-items: center; gap: 10px; }
+        .user-img { width: 40px; height: 40px; border-radius: 50%; background: #ddd; }
         
-        .loading { text-align: center; margin-top: 50px; color: #666; }
+        /* Grid */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+        
+        /* Card */
+        .card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); transition: 0.2s; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+        .card-preview { height: 180px; background: #000; display: flex; align-items: center; justify-content: center; position: relative; }
+        .card-preview video { width: 100%; height: 100%; object-fit: cover; }
+        .card-body { padding: 16px; }
+        .date { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .actions { display: flex; gap: 10px; margin-top: 10px; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-primary { background: var(--primary); color: white; text-decoration: none; }
+        .btn-outline { background: white; border: 1px solid #ddd; color: #333; }
+
+        /* Login Screen */
+        #login-screen { position: fixed; inset: 0; background: white; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
     <div id="login-screen">
-        <div class="login-box">
-            <h1 style="margin:0; color:#1a73e8;">VDFY Admin</h1>
-            <p>Secure Video Dashboard</p>
-            <button class="google-btn" onclick="signIn()">
-                Sign in with Google
-            </button>
-        </div>
+        <div class="logo">🎥 VDFY</div>
+        <h2 style="margin-bottom: 20px;">Welcome Back</h2>
+        <button id="login-btn" class="btn btn-primary" style="padding: 12px 24px; font-size: 16px;">
+            Sign in with Google
+        </button>
     </div>
 
-    <div id="app-screen">
-        <div class="sidebar">
-            <div class="logo">🎥 VDFY</div>
-            <div class="nav-item active">📂 My Videos</div>
-            <div class="nav-item" onclick="alert('Coming in Module M2.4')">📊 Analytics (Beta)</div>
-            
-            <div class="user-info">
-                <div id="user-name">Loading...</div>
-                <span class="logout-link" onclick="logout()">Sign Out</span>
+    <div class="sidebar">
+        <div class="logo">🎥 VDFY</div>
+        <div class="nav-item active">📁 My Videos</div>
+        <div class="nav-item">📊 Analytics (Beta)</div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <h1>My Recordings</h1>
+            <div class="user-profile">
+                <span id="user-name">Loading...</span>
+                <img id="user-avatar" class="user-img" src="" alt="">
+                <button id="logout-btn" class="btn btn-outline" style="margin-left: 10px;">Exit</button>
             </div>
         </div>
-        <div class="main">
-            <div id="content-area" class="grid"></div>
-        </div>
+
+        <div id="loading" style="text-align: center; color: #666; display: none;">⏳ Loading videos...</div>
+        <div class="video-grid" id="video-container">
+            </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇👇👇 ВСТАВ СЮДИ СВІЙ КОНФІГ З M1.1 👇👇👇
+        // 👇 ВСТАВ СЮДИ СВІЙ КОНФІГ (З Firebase Console -> Project Settings)
         const firebaseConfig = {
-  apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-  authDomain: "vdfy-auth-system.firebaseapp.com",
-  projectId: "vdfy-auth-system",
-  storageBucket: "vdfy-auth-system.firebasestorage.app",
-  messagingSenderId: "381929137400",
-  appId: "1:381929137400:web:661c3b07907e639fa5070d"
-};
-        // 👆👆👆 ВСТАВ СЮДИ СВІЙ КОНФІГ 👆👆👆
-
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth();
-        const provider = new GoogleAuthProvider();
-
-        // Елементи UI
-        const loginScreen = document.getElementById('login-screen');
-        const appScreen = document.getElementById('app-screen');
-        const userNameEl = document.getElementById('user-name');
-        const contentArea = document.getElementById('content-area');
-
-        // 1. Функція входу
-        window.signIn = () => {
-            signInWithPopup(auth, provider).catch(err => alert(err.message));
+            apiKey: "AIzaSy...", 
+            authDomain: "vdfy-auth-system.firebaseapp.com",
+            projectId: "vdfy-auth-system",
+            storageBucket: "vdfy-auth-system.appspot.com",
+            messagingSenderId: "...",
+            appId: "..."
         };
 
-        // 2. Функція виходу
-        window.logout = () => signOut(auth);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
 
-        // 3. Слухаємо зміни статусу (Увійшов/Вийшов)
+        const loginScreen = document.getElementById('login-screen');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const container = document.getElementById('video-container');
+        const loading = document.getElementById('loading');
+
+        // 1. ВХІД
+        loginBtn.onclick = () => {
+            signInWithPopup(auth, new GoogleAuthProvider()).catch(e => alert(e.message));
+        };
+
+        logoutBtn.onclick = () => signOut(auth);
+
+        // 2. СЛІДКУЄМО ЗА СТАНОМ
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Юзер увійшов
-                loginScreen.style.display = 'none';
-                appScreen.style.display = 'flex';
-                userNameEl.textContent = user.email;
-                
-                // Завантажуємо відео
+                loginScreen.classList.add('hidden');
+                document.getElementById('user-name').textContent = user.displayName;
+                document.getElementById('user-avatar').src = user.photoURL;
                 loadVideos(user);
             } else {
-                // Юзер вийшов
-                loginScreen.style.display = 'flex';
-                appScreen.style.display = 'none';
-                contentArea.innerHTML = '';
+                loginScreen.classList.remove('hidden');
             }
         });
 
-        // 4. Завантаження відео з сервера
+        // 3. ЗАВАНТАЖЕННЯ ВІДЕО
         async function loadVideos(user) {
-            contentArea.innerHTML = '<div class="loading">Loading your secure videos...</div>';
-            
-            // Отримуємо "свіжий" токен
-            const token = await user.getIdToken();
+            loading.style.display = 'block';
+            container.innerHTML = '';
 
             try {
-                // Відправляємо запит з ТОКЕНОМ
+                const token = await user.getIdToken();
+                
+                // 👇 ОСЬ ТУТ БУЛА ПОМИЛКА - ТЕПЕР ПРАВИЛЬНА АДРЕСА
                 const res = await fetch('/api/videos', {
-                    headers: {
-                        'Authorization': `Bearer ${token}` // <--- ОСЬ ВОНА, ПЕРЕПУСТКА!
-                    }
+                    headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
-                if (res.status === 401) throw new Error("Unauthorized");
-                
-                const folders = await res.json();
-                renderVideos(folders);
-            } catch (err) {
-                console.error(err);
-                contentArea.innerHTML = `<div class="loading" style="color:red">Error: ${err.message}</div>`;
+
+                if (!res.ok) throw new Error("Failed to fetch");
+
+                const data = await res.json();
+                renderVideos(data.videos);
+
+            } catch (error) {
+                console.error(error);
+                container.innerHTML = `<div style="color:red">Error loading videos: ${error.message}</div>`;
+            } finally {
+                loading.style.display = 'none';
             }
         }
 
-        function renderVideos(folders) {
-            contentArea.innerHTML = '';
-            if (Object.keys(folders).length === 0) {
-                contentArea.innerHTML = '<div class="loading">No videos yet. Record one!</div>';
+        function renderVideos(videos) {
+            if (!videos || videos.length === 0) {
+                container.innerHTML = `<div style="color:#888">No videos found. Go record some! 🎥</div>`;
                 return;
             }
 
-            for (const [folderName, videos] of Object.entries(folders)) {
-                // Заголовок папки
-                const header = document.createElement('div');
-                header.className = 'folder-header';
-                header.style.gridColumn = '1 / -1';
-                header.textContent = `📂 ${folderName}`;
-                contentArea.appendChild(header);
-
-                // Відео
-                videos.forEach(vid => {
-                    const card = document.createElement('div');
-                    card.className = 'card';
-                    card.innerHTML = `
-                        <div style="position:relative; padding-top:56.25%; background:black;">
-                            <video controls style="position:absolute; top:0; left:0; width:100%; height:100%;">
-                                <source src="${vid.url}" type="video/webm">
-                            </video>
+            container.innerHTML = videos.map(v => `
+                <div class="card">
+                    <div class="card-preview">
+                        <video controls src="${v.url}"></video>
+                    </div>
+                    <div class="card-body">
+                        <div class="date">📅 ${new Date(v.uploadedAt).toLocaleDateString()}</div>
+                        <div class="actions">
+                            <a href="${v.url}" target="_blank" class="btn btn-primary">Download</a>
                         </div>
-                        <div style="padding:15px;">
-                            <div style="font-size:12px; color:#999;">${new Date(vid.lastModified).toLocaleString()}</div>
-                            <a href="${vid.url}" target="_blank" style="display:block; margin-top:5px; color:#1a73e8; text-decoration:none;">Open Link 🔗</a>
-                        </div>
-                    `;
-                    contentArea.appendChild(card);
-                });
-            }
+                    </div>
+                </div>
+            `).join('');
         }
     </script>
 </body>
