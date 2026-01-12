@@ -163,10 +163,10 @@ app.get('/api/videos', verifyToken, async (req, res) => {
     }
 });
 
-// === ФІНАЛЬНИЙ ВАРІАНТ ===
+// === ФІНАЛЬНИЙ ЗАПУСК ===
 const PORT = process.env.PORT || 8080;
 
-// Ми прибрали '0.0.0.0' — тепер сервер слухає всі канали (IPv4 та IPv6)
-app.listen(PORT, () => {
+// '0.0.0.0' — ОБОВ'ЯЗКОВО для хмари (Railway)
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
 });
