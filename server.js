@@ -163,10 +163,10 @@ app.get('/api/videos', verifyToken, async (req, res) => {
     }
 });
 
-// === ФІНАЛЬНИЙ ЗАПУСК ===
-// Якщо Railway дає порт - беремо його. Якщо ні - пробуємо 3000.
+// === ФІНАЛЬНИЙ ВАРІАНТ ===
 const PORT = process.env.PORT || 8080;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// Ми прибрали '0.0.0.0' — тепер сервер слухає всі канали (IPv4 та IPv6)
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });
