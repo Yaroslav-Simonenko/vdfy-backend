@@ -52,23 +52,51 @@ const s3 = new S3Client({
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// 👇 3. СТВОРЮЄМО ОХОРОНЦЯ (Middleware)
+// 3. СТВОРЮЄМО ОХОРОНЦЯ (Middleware) - ОНОВЛЕНИЙ
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
   }
 
   const token = authHeader.split('Bearer ')[1];
 
+  // Спроба 1: Перевіряємо як Firebase ID Token (JWT)
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken; 
-    // console.log(`👤 User verified: ${req.user.uid}`);
-    next();
+    req.user = decodedToken;
+    // console.log(`✅ Firebase Auth: ${req.user.uid}`);
+    return next();
+  } catch (firebaseError) {
+    // Якщо це не Firebase токен, просто йдемо далі до перевірки Google
+  }
+
+  // Спроба 2: Перевіряємо як Google Access Token (від розширення Chrome)
+  try {
+    const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!response.ok) {
+        throw new Error('Invalid Google Token');
+    }
+
+    const userData = await response.json();
+    
+    // Формуємо користувача, щоб сервер думав, що це Firebase юзер
+    req.user = {
+        uid: userData.sub, // Google ID
+        email: userData.email,
+        name: userData.name,
+        picture: userData.picture
+    };
+    
+    // console.log(`✅ Google Auth: ${req.user.uid}`);
+    return next();
+
   } catch (error) {
-    console.error('Auth Error:', error);
+    console.error("Auth Error:", error.message);
     return res.status(403).json({ error: 'Forbidden: Invalid token' });
   }
 };
