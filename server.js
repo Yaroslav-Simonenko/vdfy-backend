@@ -166,7 +166,8 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
 // === ФІНАЛЬНИЙ ЗАПУСК ===
 const PORT = process.env.PORT || 8080;
 
-// '0.0.0.0' — ОБОВ'ЯЗКОВО для хмари (Railway)
+// Ми спеціально пишемо '0.0.0.0'
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    // 👇 Я ЗМІНИВ ЦЕЙ ТЕКСТ. ЯКЩО В ЛОГАХ ЙОГО НЕМАЄ — КОД НЕ ОНОВИВСЯ!
+    console.log(`🚀 SUCCESS! Server is listening on 0.0.0.0:${PORT}`);
 });
