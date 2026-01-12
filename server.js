@@ -165,7 +165,7 @@ app.get('/api/videos', verifyToken, async (req, res) => {
 
 // === ФІНАЛЬНИЙ ЗАПУСК ===
 // Якщо Railway дає порт - беремо його. Якщо ні - пробуємо 3000.
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
