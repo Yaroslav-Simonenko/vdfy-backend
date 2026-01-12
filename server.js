@@ -4,15 +4,15 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
-const path = require('path'); // <--- ДОДАВ ЦЕ
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. НАЛАШТУВАННЯ FIREBASE (Auth)
+// 1. FIREBASE AUTH
 let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -24,7 +24,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// 2. НАЛАШТУВАННЯ S3 / R2 (Storage)
+// 2. R2 STORAGE
 const s3 = new S3Client({
   region: "auto",
   endpoint: process.env.R2_ENDPOINT,
@@ -34,105 +34,82 @@ const s3 = new S3Client({
   },
 });
 
-// 3. НАЛАШТУВАННЯ OPENAI (AI)
+// 3. OPENAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 4. НАЛАШТУВАННЯ MULTER
+// 4. MULTER
 const upload = multer({ dest: 'uploads/' });
 
-// ==========================================
-// 🛡️ MIDDLEWARE: УНІВЕРСАЛЬНА ПЕРЕВІРКА ТОКЕНА
-// ==========================================
+// --- MIDDLEWARE AUTH (Універсальний) ---
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-
   const token = authHeader.split('Bearer ')[1];
 
+  // Спроба 1: Firebase
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
     return next();
-  } catch (firebaseError) {
-    // Не JWT? Пробуємо Google Access Token
-  }
+  } catch (e) {}
 
+  // Спроба 2: Google
   try {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
         headers: { Authorization: `Bearer ${token}` }
     });
-
-    if (!response.ok) {
-        throw new Error('Invalid Google Token');
-    }
-
+    if (!response.ok) throw new Error('Invalid Google Token');
     const userData = await response.json();
-    req.user = {
-        uid: userData.sub,
-        email: userData.email,
-        name: userData.name,
-        picture: userData.picture
-    };
+    req.user = { uid: userData.sub, email: userData.email, name: userData.name, picture: userData.picture };
     return next();
-
   } catch (error) {
-    console.error("Auth Error:", error.message);
-    return res.status(403).json({ error: 'Forbidden: Invalid token' });
+    return res.status(403).json({ error: 'Forbidden' });
   }
 };
 
-// ==========================================
-// 🚀 ROUTES (МАРШРУТИ)
-// ==========================================
+// ================= ROUTES =================
 
-// 1. Головна сторінка (Health check)
-app.get('/', (req, res) => {
-  res.send('✅ VDFY Backend is Running (AI + R2 + Dashboard)');
-});
+app.get('/', (req, res) => res.send('✅ VDFY Backend Ready'));
 
-// 2. АДМІНКА (ПОВЕРНУВ! 🎉)
+// 1. АДМІНКА (Dashboard)
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-// 3. ЗАВАНТАЖЕННЯ + AI
+// 2. ЗАВАНТАЖЕННЯ ВІДЕО (+ AI Fix)
 app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, res) => {
   try {
-    console.log(`🎤 Processing file for USER: ${req.user.uid}`);
-    
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    if (!req.file) return res.status(400).json({ error: "No file" });
 
-    // Додаємо розширення файлу для OpenAI
+    // --- FIX: Додаємо розширення .webm ---
     const originalPath = req.file.path;
     const newPath = req.file.path + '.webm';
     fs.renameSync(originalPath, newPath);
 
-    // Транскрипція Whisper
-    console.log("🤖 Sending to OpenAI Whisper...");
+    // Whisper (теперь файл з розширенням)
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(newPath),
       model: "whisper-1",
     });
 
-    // Завантаження в R2
+    // Upload Video to R2
     const fileStream = fs.createReadStream(newPath);
     const folder = req.body.folder || "Unsorted";
     const fileName = `rec_${Date.now()}.webm`;
     const r2Key = `${req.user.uid}/${folder}/${fileName}`;
 
-    const uploadVideoParams = {
+    await s3.send(new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: r2Key,
       Body: fileStream,
       ContentType: "video/webm",
-    };
-    await s3.send(new PutObjectCommand(uploadVideoParams));
+    }));
 
-    // Зберігаємо текст поруч
+    // Upload Text to R2
     const textKey = r2Key.replace('.webm', '.txt');
     await s3.send(new PutObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -144,25 +121,50 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     // Очистка
     fs.unlinkSync(newPath);
 
-    const publicUrl = `${process.env.R2_PUBLIC_URL}/${r2Key}`;
-    
     res.json({ 
         success: true, 
-        publicUrl: publicUrl,
+        publicUrl: `${process.env.R2_PUBLIC_URL}/${r2Key}`,
         transcription: transcription.text
     });
 
   } catch (error) {
-    console.error("❌ Processing Error:", error);
-    if (req.file && fs.existsSync(req.file.path + '.webm')) {
-        try { fs.unlinkSync(req.file.path + '.webm'); } catch(e){}
+    console.error(error);
+    // Пробуємо видалити файл, якщо сталася помилка
+    if (req.file) {
+        try { if (fs.existsSync(req.file.path + '.webm')) fs.unlinkSync(req.file.path + '.webm'); } catch(e){}
+        try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch(e){}
     }
-    res.status(500).json({ error: "Failed to process video: " + error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
-// ЗАПУСК СЕРВЕРА
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// 3. ОТРИМАННЯ СПИСКУ ВІДЕО
+app.get('/api/my-videos', verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const command = new ListObjectsV2Command({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Prefix: `${userId}/`
+        });
+
+        const data = await s3.send(command);
+        
+        if (!data.Contents) return res.json({ videos: [] });
+
+        const videos = data.Contents
+            .filter(item => item.Key.endsWith('.webm'))
+            .map(item => ({
+                key: item.Key,
+                url: `${process.env.R2_PUBLIC_URL}/${item.Key}`,
+                uploadedAt: item.LastModified
+            }));
+
+        res.json({ videos });
+    } catch (error) {
+        console.error("List Error:", error);
+        res.status(500).json({ error: "Failed to list videos" });
+    }
 });
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`🚀 Server on ${PORT}`));
