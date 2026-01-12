@@ -4,6 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
+// 👇 ДОДАВ ListObjectsV2Command ДЛЯ ЧИТАННЯ СПИСКУ
 const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
@@ -42,7 +43,7 @@ const openai = new OpenAI({
 // 4. MULTER
 const upload = multer({ dest: 'uploads/' });
 
-// --- MIDDLEWARE AUTH (Універсальний) ---
+// --- MIDDLEWARE AUTH ---
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -50,14 +51,12 @@ const verifyToken = async (req, res, next) => {
   }
   const token = authHeader.split('Bearer ')[1];
 
-  // Спроба 1: Firebase
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
     return next();
   } catch (e) {}
 
-  // Спроба 2: Google
   try {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -75,22 +74,21 @@ const verifyToken = async (req, res, next) => {
 
 app.get('/', (req, res) => res.send('✅ VDFY Backend Ready'));
 
-// 1. АДМІНКА (Dashboard)
+// 1. АДМІНКА (ПОВЕРНУВ!)
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
-// 2. ЗАВАНТАЖЕННЯ ВІДЕО (+ AI Fix)
+// 2. ЗАВАНТАЖЕННЯ ВІДЕО (+ AI)
 app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file" });
 
-    // --- FIX: Додаємо розширення .webm ---
-    const originalPath = req.file.path;
+    // Rename for OpenAI
     const newPath = req.file.path + '.webm';
-    fs.renameSync(originalPath, newPath);
+    fs.renameSync(req.file.path, newPath);
 
-    // Whisper (теперь файл з розширенням)
+    // Whisper
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(newPath),
       model: "whisper-1",
@@ -118,7 +116,6 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
         ContentType: "text/plain"
     }));
 
-    // Очистка
     fs.unlinkSync(newPath);
 
     res.json({ 
@@ -129,19 +126,16 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
 
   } catch (error) {
     console.error(error);
-    // Пробуємо видалити файл, якщо сталася помилка
-    if (req.file) {
-        try { if (fs.existsSync(req.file.path + '.webm')) fs.unlinkSync(req.file.path + '.webm'); } catch(e){}
-        try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch(e){}
-    }
+    if (req.file && fs.existsSync(req.file.path + '.webm')) fs.unlinkSync(req.file.path + '.webm');
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3. ОТРИМАННЯ СПИСКУ ВІДЕО
+// 3. ОТРИМАННЯ СПИСКУ ВІДЕО (ОСЬ ЦЕ БУЛО ВИДАЛЕНО!)
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const userId = req.user.uid;
+        // Шукаємо файли в папці користувача
         const command = new ListObjectsV2Command({
             Bucket: process.env.R2_BUCKET_NAME,
             Prefix: `${userId}/`
@@ -149,8 +143,11 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
 
         const data = await s3.send(command);
         
+        // Якщо файлів немає
         if (!data.Contents) return res.json({ videos: [] });
 
+        // Формуємо красивий список
+        // Фільтруємо тільки .webm (відео)
         const videos = data.Contents
             .filter(item => item.Key.endsWith('.webm'))
             .map(item => ({
