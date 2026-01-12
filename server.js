@@ -6,14 +6,13 @@ const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
+const path = require('path'); // <--- ДОДАВ ЦЕ
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // 1. НАЛАШТУВАННЯ FIREBASE (Auth)
-// Якщо змінна середовища є, використовуємо її (для Railway)
-// Якщо ні - шукаємо локальний файл (для тестів)
 let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -40,7 +39,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// 4. НАЛАШТУВАННЯ MULTER (Завантаження файлів)
+// 4. НАЛАШТУВАННЯ MULTER
 const upload = multer({ dest: 'uploads/' });
 
 // ==========================================
@@ -54,16 +53,14 @@ const verifyToken = async (req, res, next) => {
 
   const token = authHeader.split('Bearer ')[1];
 
-  // Спроба 1: Перевіряємо як Firebase ID Token (JWT)
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
     req.user = decodedToken;
     return next();
   } catch (firebaseError) {
-    // Не JWT? Не страшно. Йдемо далі.
+    // Не JWT? Пробуємо Google Access Token
   }
 
-  // Спроба 2: Перевіряємо як Google Access Token (Chrome Extension)
   try {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -74,10 +71,8 @@ const verifyToken = async (req, res, next) => {
     }
 
     const userData = await response.json();
-    
-    // Емулюємо користувача Firebase
     req.user = {
-        uid: userData.sub, // Google ID
+        uid: userData.sub,
         email: userData.email,
         name: userData.name,
         picture: userData.picture
@@ -94,40 +89,41 @@ const verifyToken = async (req, res, next) => {
 // 🚀 ROUTES (МАРШРУТИ)
 // ==========================================
 
-// Перевірка життя сервера
+// 1. Головна сторінка (Health check)
 app.get('/', (req, res) => {
-  res.send('✅ VDFY Backend is Running (AI + R2 + Universal Auth)');
+  res.send('✅ VDFY Backend is Running (AI + R2 + Dashboard)');
 });
 
-// ГОЛОВНИЙ МАРШРУТ: Завантаження + Транскрипція
+// 2. АДМІНКА (ПОВЕРНУВ! 🎉)
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+// 3. ЗАВАНТАЖЕННЯ + AI
 app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, res) => {
   try {
     console.log(`🎤 Processing file for USER: ${req.user.uid}`);
     
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // --- КРОК 1: ПІДГОТОВКА ФАЙЛУ (AI FIX) ---
-    // OpenAI вимагає розширення файлу. Multer його не дає.
-    // Тому ми вручну додаємо .webm до імені.
+    // Додаємо розширення файлу для OpenAI
     const originalPath = req.file.path;
     const newPath = req.file.path + '.webm';
     fs.renameSync(originalPath, newPath);
 
-    // --- КРОК 2: AI ТРАНСКРИПЦІЯ (WHISPER) ---
+    // Транскрипція Whisper
     console.log("🤖 Sending to OpenAI Whisper...");
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(newPath),
       model: "whisper-1",
     });
-    console.log("✅ Transcription done.");
 
-    // --- КРОК 3: ЗАВАНТАЖЕННЯ В R2 (CLOUD) ---
+    // Завантаження в R2
     const fileStream = fs.createReadStream(newPath);
     const folder = req.body.folder || "Unsorted";
     const fileName = `rec_${Date.now()}.webm`;
     const r2Key = `${req.user.uid}/${folder}/${fileName}`;
 
-    console.log("☁️ Uploading video to R2...");
     const uploadVideoParams = {
       Bucket: process.env.R2_BUCKET_NAME,
       Key: r2Key,
@@ -136,9 +132,8 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     };
     await s3.send(new PutObjectCommand(uploadVideoParams));
 
-    // --- КРОК 4: ЗАВАНТАЖЕННЯ ТЕКСТУ В R2 ---
+    // Зберігаємо текст поруч
     const textKey = r2Key.replace('.webm', '.txt');
-    console.log("📝 Uploading text to R2...");
     await s3.send(new PutObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: textKey,
@@ -146,10 +141,9 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
         ContentType: "text/plain"
     }));
 
-    // --- КРОК 5: ОЧИСТКА ---
-    fs.unlinkSync(newPath); // Видаляємо тимчасовий файл з сервера
+    // Очистка
+    fs.unlinkSync(newPath);
 
-    // --- ФІНІШ ---
     const publicUrl = `${process.env.R2_PUBLIC_URL}/${r2Key}`;
     
     res.json({ 
@@ -160,7 +154,6 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
 
   } catch (error) {
     console.error("❌ Processing Error:", error);
-    // Якщо файл залишився - пробуємо видалити
     if (req.file && fs.existsSync(req.file.path + '.webm')) {
         try { fs.unlinkSync(req.file.path + '.webm'); } catch(e){}
     }
