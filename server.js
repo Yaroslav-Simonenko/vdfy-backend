@@ -4,7 +4,6 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
-// 👇 ДОДАВ ListObjectsV2Command ДЛЯ ЧИТАННЯ СПИСКУ
 const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
@@ -18,12 +17,15 @@ let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
   serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 } else {
-  serviceAccount = require('./serviceAccountKey.json');
+  // Для локальної розробки (якщо є файл)
+  try { serviceAccount = require('./serviceAccountKey.json'); } catch(e) {}
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+}
 
 // 2. R2 STORAGE
 const s3 = new S3Client({
@@ -51,12 +53,14 @@ const verifyToken = async (req, res, next) => {
   }
   const token = authHeader.split('Bearer ')[1];
 
+  // Спроба 1: Firebase Auth (для адмінки)
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
-    req.user = decodedToken;
+    req.user = decodedToken; // Тут зазвичай є email
     return next();
   } catch (e) {}
 
+  // Спроба 2: Google OAuth (для розширення)
   try {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -74,7 +78,7 @@ const verifyToken = async (req, res, next) => {
 
 app.get('/', (req, res) => res.send('✅ VDFY Backend Ready'));
 
-// 1. АДМІНКА (ПОВЕРНУВ!)
+// 1. АДМІНКА
 app.get('/dashboard', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
@@ -98,7 +102,10 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     const fileStream = fs.createReadStream(newPath);
     const folder = req.body.folder || "Unsorted";
     const fileName = `rec_${Date.now()}.webm`;
-    const r2Key = `${req.user.uid}/${folder}/${fileName}`;
+
+    // 👇 [FIX] ВИКОРИСТОВУЄМО EMAIL ЯК ГОЛОВНУ ПАПКУ
+    const userFolder = req.user.email || req.user.uid; 
+    const r2Key = `${userFolder}/${folder}/${fileName}`;
 
     await s3.send(new PutObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
@@ -131,14 +138,15 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
   }
 });
 
-// 3. ОТРИМАННЯ СПИСКУ ВІДЕО (ОСЬ ЦЕ БУЛО ВИДАЛЕНО!)
+// 3. ОТРИМАННЯ СПИСКУ ВІДЕО
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
-        const userId = req.user.uid;
-        // Шукаємо файли в папці користувача
+        // 👇 [FIX] ШУКАЄМО В ПАПЦІ EMAIL, А НЕ UID
+        const userFolder = req.user.email || req.user.uid;
+
         const command = new ListObjectsV2Command({
             Bucket: process.env.R2_BUCKET_NAME,
-            Prefix: `${userId}/`
+            Prefix: `${userFolder}/`
         });
 
         const data = await s3.send(command);
@@ -147,7 +155,6 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
         if (!data.Contents) return res.json({ videos: [] });
 
         // Формуємо красивий список
-        // Фільтруємо тільки .webm (відео)
         const videos = data.Contents
             .filter(item => item.Key.endsWith('.webm'))
             .map(item => ({
