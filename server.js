@@ -163,11 +163,9 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     }
 });
 
-// === ФІНАЛЬНИЙ ЗАПУСК ===
-const PORT = process.env.PORT || 8080;
+// === ФІНАЛЬНИЙ ЗАПУСК НА ПОРТУ 3000 ===
+const PORT = process.env.PORT || 3000;
 
-// Ми спеціально пишемо '0.0.0.0'
 app.listen(PORT, '0.0.0.0', () => {
-    // 👇 Я ЗМІНИВ ЦЕЙ ТЕКСТ. ЯКЩО В ЛОГАХ ЙОГО НЕМАЄ — КОД НЕ ОНОВИВСЯ!
-    console.log(`🚀 SUCCESS! Server is listening on 0.0.0.0:${PORT}`);
+    console.log(`🚀 FINAL FIX: Server is listening on 0.0.0.0:${PORT}`);
 });
