@@ -78,13 +78,13 @@
 
         // 👇 ВСТАВ СЮДИ СВІЙ КОНФІГ (З Firebase Console -> Project Settings)
         const firebaseConfig = {
-            apiKey: "AIzaSy...", 
-            authDomain: "vdfy-auth-system.firebaseapp.com",
-            projectId: "vdfy-auth-system",
-            storageBucket: "vdfy-auth-system.appspot.com",
-            messagingSenderId: "...",
-            appId: "..."
-        };
+  apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
+  authDomain: "vdfy-auth-system.firebaseapp.com",
+  projectId: "vdfy-auth-system",
+  storageBucket: "vdfy-auth-system.firebasestorage.app",
+  messagingSenderId: "381929137400",
+  appId: "1:381929137400:web:661c3b07907e639fa5070d"
+};
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -123,7 +123,7 @@
                 const token = await user.getIdToken();
                 
                 // 👇 ОСЬ ТУТ БУЛА ПОМИЛКА - ТЕПЕР ПРАВИЛЬНА АДРЕСА
-                const res = await fetch('/api/videos', {
+                const res = await fetch('/api/my-videos', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
