@@ -167,7 +167,52 @@
                 document.getElementById('loading').style.display = 'none';
             }
         }
+// 🗑 ФУНКЦІЯ ВИДАЛЕННЯ
+window.deleteVideo = async (videoKey) => {
+            if (!confirm("Delete this recording forever?")) return;
+            
+            try {
+                const token = await auth.currentUser.getIdToken();
+                const res = await fetch('/api/delete-video', {
+                    method: 'DELETE',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ videoKey })
+                });
 
+                if (res.ok) {
+                    alert("Deleted!");
+                    location.reload(); 
+                }
+            } catch (e) {
+                alert("Delete failed");
+            }
+        };
+
+        
+        function renderVideos(videos) {
+            if (!videos || videos.length === 0) {
+                container.innerHTML = `<p>No recordings found.</p>`;
+                return;
+            }
+            container.innerHTML = videos.map(v => `
+                <div class="card">
+                    <div class="card-preview"><video controls src="${v.url}"></video></div>
+                    <div class="card-body">
+                        <div style="font-weight:600">📹 Response</div>
+                        <div style="font-size:12px; color:gray">${new Date(v.uploadedAt).toLocaleString()}</div>
+                        <div class="actions">
+                            <a href="${v.url}" target="_blank" class="btn btn-outline">Video</a>
+                            ${v.textUrl ? `<button class="btn btn-outline" onclick="viewText('${v.textUrl}')">Text</button>` : ''}
+                            <button class="btn btn-primary" onclick="analyzeAI('${v.textUrl}', this)">Analyze</button>
+                            <button class="btn btn-outline" style="color:#ef4444; border-color:#ef4444;" onclick="deleteVideo('${v.key}')">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
         function renderVideos(videos) {
             if (!videos || videos.length === 0) {
                 container.innerHTML = `<p>No recordings found.</p>`;
