@@ -186,7 +186,38 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
     }
 });
 
+// 🗑 НОВИЙ МАРШРУТ: ВИДАЛЕННЯ ЗАПИСУ
+app.delete('/api/delete-video', verifyToken, async (req, res) => {
+    try {
+        const { videoKey } = req.body;
+        if (!videoKey) return res.status(400).json({ error: "No videoKey" });
+
+        const textKey = videoKey.replace('.webm', '.txt');
+        const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+
+        // Видаляємо відео
+        await s3.send(new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: videoKey
+        }));
+
+        // Видаляємо текст
+        await s3.send(new PutObjectCommand({ // Використовуємо DeleteObjectCommand
+             Bucket: process.env.R2_BUCKET_NAME,
+             Key: textKey
+        }).catch(() => {})); // Ігноруємо якщо тексту нема
+
+        // Виправляємо на DeleteObjectCommand
+        const { DeleteObjectCommand: DelCmd } = require('@aws-sdk/client-s3');
+        await s3.send(new DelCmd({ Bucket: process.env.R2_BUCKET_NAME, Key: textKey })).catch(()=>{});
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 SUCCESS! Server is listening on 0.0.0.0:${PORT}`); //
+    console.log(`🚀 Server is listening on 0.0.0.0:${PORT}`);
 });
