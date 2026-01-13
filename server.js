@@ -96,7 +96,6 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
         const folder = req.body.folder || "Unsorted";
         const fileName = `rec_${Date.now()}.webm`;
         
-        // Зберігаємо в публічну папку для спільного доступу
         const userFolder = 'public_uploads'; 
         const r2Key = `${userFolder}/${folder}/${fileName}`;
 
@@ -112,7 +111,8 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
             Bucket: process.env.R2_BUCKET_NAME,
             Key: textKey,
             Body: transcription.text,
-            ContentType: "text/plain"
+            // 👇 ТУТ ФІКС КОДУВАННЯ (UTF-8)
+            ContentType: "text/plain; charset=utf-8"
         }));
 
         fs.unlinkSync(newPath);
@@ -129,11 +129,10 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     }
 });
 
-// ОТРИМАННЯ СПИСКУ ВІДЕО ТА ТЕКСТІВ
+// ОТРИМАННЯ СПИСКУ
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const userFolder = 'public_uploads';
-
         const command = new ListObjectsV2Command({
             Bucket: process.env.R2_BUCKET_NAME,
             Prefix: `${userFolder}/`
