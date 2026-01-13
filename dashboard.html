@@ -32,9 +32,9 @@
         .actions { display: flex; gap: 8px; margin-top: 16px; }
         .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; display: inline-block; }
         .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
         #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #login-btn { width: auto; min-width: 200px; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -42,7 +42,7 @@
 
     <div id="login-screen">
         <div class="logo">🎥 VDFY</div>
-        <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
+        <button id="login-btn" class="btn btn-primary" style="min-width:200px">Sign in with Google</button>
     </div>
 
     <div class="sidebar">
@@ -68,9 +68,9 @@
         </div>
 
         <div id="tab-analytics" class="view-section">
-            <div style="text-align: center; padding: 50px; border: 2px dashed var(--border); border-radius: 16px;">
-                <h3>📊 Analytics Mode</h3>
-                <p>AI Reports will appear here in M4.3</p>
+            <div id="analytics-result" style="padding: 24px; background: white; border-radius: 16px; border: 1px solid var(--border); min-height: 200px;">
+                <h3 style="margin-top:0">📊 AI Insights</h3>
+                <p id="ai-text">Select a video and click "Analyze" to see the summary here.</p>
             </div>
         </div>
     </div>
@@ -80,8 +80,7 @@
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
         // 👇 ВСТАВТЕ ВАШ КОНФІГ СЮДИ
-        
-const firebaseConfig = {
+        const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
     projectId: "vdfy-auth-system",
@@ -110,6 +109,51 @@ const firebaseConfig = {
             }
         });
 
+        // 📝 ФУНКЦІЯ ПЕРЕГЛЯДУ ТЕКСТУ
+        window.viewText = async (url) => {
+            try {
+                const res = await fetch(url);
+                const text = await res.text();
+                alert("Transcription:\n\n" + text);
+            } catch (e) {
+                alert("CORS Error: Please make sure you added CORS policy in Cloudflare R2 Settings.");
+            }
+        };
+
+        // 🤖 ФУНКЦІЯ AI АНАЛІЗУ
+        window.analyzeAI = async (textUrl, btn) => {
+            if (!textUrl) return alert("Transcript not ready yet.");
+            
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "⌛...";
+
+            try {
+                const token = await auth.currentUser.getIdToken();
+                const res = await fetch('/api/analyze-text', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ textUrl })
+                });
+
+                const data = await res.json();
+                if (data.analysis) {
+                    document.getElementById('ai-text').innerHTML = `<strong>Summary:</strong><br>${data.analysis.replace(/\n/g, '<br>')}`;
+                    switchTab('analytics');
+                } else {
+                    alert("Analysis failed: " + (data.error || "Unknown error"));
+                }
+            } catch (e) {
+                alert("Error: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        };
+
         async function loadVideos(user) {
             document.getElementById('loading').style.display = 'block';
             try {
@@ -135,13 +179,10 @@ const firebaseConfig = {
                     <div class="card-body">
                         <div style="font-weight:600">📹 Response</div>
                         <div style="font-size:12px; color:gray">${new Date(v.uploadedAt).toLocaleString()}</div>
-                        <div style="font-size:12px; margin-top:5px">
-                            ${v.textUrl ? '✅ Transcript Ready' : '⏳ Processing...'}
-                        </div>
                         <div class="actions">
                             <a href="${v.url}" target="_blank" class="btn btn-outline">Video</a>
-                            ${v.textUrl ? `<a href="${v.textUrl}" target="_blank" class="btn btn-outline">Text</a>` : ''}
-                            <button class="btn btn-primary" onclick="alert('Analysis M4.3')">Analyze</button>
+                            ${v.textUrl ? `<button class="btn btn-outline" onclick="viewText('${v.textUrl}')">Text</button>` : ''}
+                            <button class="btn btn-primary" onclick="analyzeAI('${v.textUrl}', this)">Analyze</button>
                         </div>
                     </div>
                 </div>

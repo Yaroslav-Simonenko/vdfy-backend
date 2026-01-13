@@ -96,7 +96,6 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
         const folder = req.body.folder || "Unsorted";
         const fileName = `rec_${Date.now()}.webm`;
         
-        // Зберігаємо в публічну папку для спільного доступу
         const userFolder = 'public_uploads'; 
         const r2Key = `${userFolder}/${folder}/${fileName}`;
 
@@ -133,7 +132,6 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const userFolder = 'public_uploads';
-
         const command = new ListObjectsV2Command({
             Bucket: process.env.R2_BUCKET_NAME,
             Prefix: `${userFolder}/`
@@ -161,6 +159,32 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
         res.json({ videos });
     } catch (error) {
         res.status(500).json({ error: "Failed to list videos" });
+    }
+});
+
+// 🔥 НОВИЙ МАРШРУТ: АНАЛІТИКА ШІ
+app.post('/api/analyze-text', verifyToken, async (req, res) => {
+    try {
+        const { textUrl } = req.body;
+        if (!textUrl) return res.status(400).json({ error: "No text URL provided" });
+
+        // 1. Отримуємо текст файлу з R2
+        const textRes = await fetch(textUrl);
+        const originalText = await textRes.text();
+
+        // 2. Відправляємо в GPT для резюме
+        const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { role: "system", content: "Ти професійний аналітик. Зроби короткий підсумок (3-4 речення) наданої транскрибації. Виділи головну думку. Відповідай тією ж мовою, якою написаний текст." },
+                { role: "user", content: originalText }
+            ],
+        });
+
+        res.json({ analysis: completion.choices[0].message.content });
+    } catch (error) {
+        console.error("AI Analysis Error:", error);
+        res.status(500).json({ error: "AI Analysis failed" });
     }
 });
 
