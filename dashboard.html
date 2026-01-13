@@ -14,7 +14,7 @@
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; color: var(--text-main); }
         .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; flex-shrink: 0; }
-        .logo { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 40px; }
+        .logo { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 30px; }
         .nav-item { padding: 12px 16px; margin-bottom: 4px; border-radius: 8px; cursor: pointer; color: var(--text-sec); display: flex; align-items: center; gap: 12px; transition: 0.2s; }
         .nav-item.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
         .main { flex-grow: 1; padding: 40px; overflow-y: auto; }
@@ -26,7 +26,7 @@
         .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
         .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; transition: 0.2s; }
         .card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .card-preview { height: 180px; background: #000; }
+        .card-preview { height: 180px; background: #000; position: relative; }
         .card-preview video { width: 100%; height: 100%; object-fit: cover; }
         .card-body { padding: 16px; }
         .actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -35,9 +35,11 @@
         .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
         
+        .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
+        .copy-link { color: #2563eb; cursor: pointer; text-decoration: underline; margin-top: 4px; display: inline-block; }
+
         #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        /* Fix for giant button */
-        #login-btn { width: auto; min-width: 240px; padding: 14px 24px; }
+        #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -50,6 +52,13 @@
 
     <div class="sidebar">
         <div class="logo">🎥 VDFY</div>
+        
+        <div class="id-box">
+            <b>YOUR ID (For forms):</b><br>
+            <span id="user-uid">Loading...</span>
+            <div class="copy-link" onclick="copyTag()">📋 Copy Form Tag</div>
+        </div>
+
         <div class="nav-item active" onclick="switchTab('videos')">📁 Recordings</div>
         <div class="nav-item" onclick="switchTab('analytics')">📊 AI Analytics</div>
         <div style="flex-grow:1"></div>
@@ -66,7 +75,7 @@
         </div>
 
         <div id="tab-videos" class="view-section active">
-            <div id="loading" style="text-align: center; display: none;"><br>⏳ Loading...</div>
+            <div id="loading" style="text-align: center; display: none;"><br>⏳ Loading your videos...</div>
             <div class="video-grid" id="video-container"></div>
         </div>
 
@@ -82,28 +91,19 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇 INSERT YOUR FIREBASE CONFIG
+        // 👇 TVIY CONFIG
         const firebaseConfig = {
-    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-    authDomain: "vdfy-auth-system.firebaseapp.com",
-    projectId: "vdfy-auth-system",
-    storageBucket: "vdfy-auth-system.firebasestorage.app",
-    messagingSenderId: "381929137400",
-    appId: "1:381929137400:web:661c3b07907e639fa5070d"
-  };
+            // ... ВСТАВ СЮДИ СВІЙ КОНФІГ (з минулого разу)
+        };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
         const loginScreen = document.getElementById('login-screen');
         const container = document.getElementById('video-container');
+        let currentUid = "";
 
-        document.getElementById('login-btn').onclick = () => {
-            signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
-                if(err.code === 'auth/popup-closed-by-user') console.log("User closed popup."); //
-            });
-        };
-        
+        document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         document.getElementById('logout-btn').onclick = () => signOut(auth);
 
         onAuthStateChanged(auth, (user) => {
@@ -111,51 +111,57 @@
                 loginScreen.classList.add('hidden');
                 document.getElementById('user-name').textContent = user.displayName;
                 document.getElementById('user-avatar').src = user.photoURL;
+                document.getElementById('user-uid').textContent = user.uid;
+                currentUid = user.uid;
                 loadVideos(user);
             } else {
                 loginScreen.classList.remove('hidden');
             }
         });
 
-        // FIX FOR CORS
+        window.copyTag = () => {
+            navigator.clipboard.writeText(`[[type=video uid=${currentUid}]]`);
+            alert("Tag copied! Paste it into your Google Form question.");
+        };
+
+        // ... Ті самі функції аналізу та перегляду тексту ...
         window.viewText = async (url) => {
             try {
                 const res = await fetch(url);
                 if (!res.ok) throw new Error();
-                const text = await res.text();
-                alert("Transcription:\n\n" + text);
-            } catch (e) {
-                alert("CORS Error: Please make sure you added CORS policy in Cloudflare R2 Settings.");
-            }
+                alert("Transcript:\n\n" + await res.text());
+            } catch (e) { alert("CORS Error or No Transcript"); }
         };
 
         window.analyzeAI = async (textUrl, btn) => {
-            if (!textUrl) return alert("Transcript not ready.");
-            btn.disabled = true;
-            btn.textContent = "⌛ Analyzing...";
-            
-            try {
-                const token = await auth.currentUser.getIdToken();
-                const res = await fetch('/api/analyze-text', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ textUrl })
-                });
-                const data = await res.json();
-                if(data.analysis) {
-                    document.getElementById('ai-content').innerHTML = `<strong>Summary:</strong><br>${data.analysis.replace(/\n/g, '<br>')}`;
-                    switchTab('analytics');
-                }
-            } catch (e) {
-                alert("AI Analysis Error.");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = "Analyze";
-            }
+            if (!textUrl) return alert("Transcript missing");
+            btn.disabled = true; btn.textContent = "Analyzing...";
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/analyze-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ textUrl })
+            });
+            const data = await res.json();
+            document.getElementById('ai-content').textContent = data.analysis || "Error";
+            switchTab('analytics');
+            btn.disabled = false; btn.textContent = "Analyze";
+        };
+
+        window.deleteVideo = async (videoKey) => {
+            if (!confirm("Delete?")) return;
+            const token = await auth.currentUser.getIdToken();
+            await fetch('/api/delete-video', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ videoKey })
+            });
+            loadVideos(auth.currentUser);
         };
 
         async function loadVideos(user) {
             document.getElementById('loading').style.display = 'block';
+            container.innerHTML = "";
             try {
                 const token = await user.getIdToken();
                 const res = await fetch('/api/my-videos', {
@@ -163,41 +169,19 @@
                 });
                 const data = await res.json();
                 renderVideos(data.videos);
+            } catch (e) {
+                console.error(e);
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
         }
 
-        // ... (існуючий код до блоку script) ...
-
-        // 🗑 ФУНКЦІЯ ВИДАЛЕННЯ
-        window.deleteVideo = async (videoKey) => {
-            if (!confirm("Delete this recording forever?")) return;
-            
-            try {
-                const token = await auth.currentUser.getIdToken();
-                const res = await fetch('/api/delete-video', {
-                    method: 'DELETE',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'Authorization': `Bearer ${token}` 
-                    },
-                    body: JSON.stringify({ videoKey })
-                });
-
-                if (res.ok) {
-                    alert("Deleted!");
-                    location.reload(); 
-                }
-            } catch (e) {
-                alert("Delete failed");
-            }
-        };
-
-        // ... (оновлений renderVideos) ...
         function renderVideos(videos) {
             if (!videos || videos.length === 0) {
-                container.innerHTML = `<p>No recordings found.</p>`;
+                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:gray;">
+                    <h3>No videos yet 📭</h3>
+                    <p>Create a form using the ID on the left, and new responses will appear here.</p>
+                </div>`;
                 return;
             }
             container.innerHTML = videos.map(v => `
