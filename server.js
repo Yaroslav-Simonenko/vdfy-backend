@@ -111,7 +111,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
             Bucket: process.env.R2_BUCKET_NAME,
             Key: textKey,
             Body: transcription.text,
-            ContentType: "text/plain; charset=utf-8"
+            ContentType: "text/plain; charset=utf-8" // Fix for multi-language encoding
         }));
 
         fs.unlinkSync(newPath);
@@ -162,21 +162,19 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     }
 });
 
-// 🔥 НОВИЙ МАРШРУТ: АНАЛІТИКА ШІ
+// 🔥 AI ANALYSIS ENDPOINT
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const { textUrl } = req.body;
-        if (!textUrl) return res.status(400).json({ error: "No text URL provided" });
+        if (!textUrl) return res.status(400).json({ error: "No text URL" });
 
-        // 1. Отримуємо текст файлу з R2
         const textRes = await fetch(textUrl);
         const originalText = await textRes.text();
 
-        // 2. Відправляємо в GPT для резюме
         const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-                { role: "system", content: "Ти професійний аналітик. Зроби короткий підсумок (3-4 речення) наданої транскрибації. Виділи головну думку. Відповідай тією ж мовою, якою написаний текст." },
+                { role: "system", content: "You are a professional analyst. Summarize the provided video transcription into 3-4 key bullet points. Use the same language as the original text." },
                 { role: "user", content: originalText }
             ],
         });
@@ -190,5 +188,5 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 FINAL FIX: Server is listening on 0.0.0.0:${PORT}`);
+    console.log(`🚀 SUCCESS! Server is listening on 0.0.0.0:${PORT}`); //
 });
