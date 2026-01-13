@@ -4,7 +4,8 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
-const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
+// 👇 ДОДАВ DeleteObjectCommand сюди
+const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
 
@@ -111,7 +112,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
             Bucket: process.env.R2_BUCKET_NAME,
             Key: textKey,
             Body: transcription.text,
-            ContentType: "text/plain; charset=utf-8" // Fix for multi-language encoding
+            ContentType: "text/plain; charset=utf-8"
         }));
 
         fs.unlinkSync(newPath);
@@ -128,7 +129,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     }
 });
 
-// ОТРИМАННЯ СПИСКУ ВІДЕО ТА ТЕКСТІВ
+// ОТРИМАННЯ СПИСКУ ВІДЕО
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const userFolder = 'public_uploads';
@@ -162,7 +163,7 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     }
 });
 
-// 🔥 AI ANALYSIS ENDPOINT
+// AI АНАЛІЗ
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const { textUrl } = req.body;
@@ -186,33 +187,33 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
     }
 });
 
-// 🗑 НОВИЙ МАРШРУТ: ВИДАЛЕННЯ ЗАПИСУ
+// 🔥 ВИПРАВЛЕНИЙ МАРШРУТ ВИДАЛЕННЯ
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     try {
         const { videoKey } = req.body;
-        if (!videoKey) return res.status(400).json({ error: "No videoKey" });
+        if (!videoKey) return res.status(400).json({ error: "No videoKey provided" });
 
         const textKey = videoKey.replace('.webm', '.txt');
-        const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
-        // Видаляємо відео
+        console.log(`Deleting video: ${videoKey} and text: ${textKey}`);
+
+        // 1. Видаляємо відео
         await s3.send(new DeleteObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: videoKey
         }));
 
-        // Видаляємо текст
-        await s3.send(new PutObjectCommand({ // Використовуємо DeleteObjectCommand
-             Bucket: process.env.R2_BUCKET_NAME,
-             Key: textKey
-        }).catch(() => {})); // Ігноруємо якщо тексту нема
+        // 2. Видаляємо текст (ВИПРАВЛЕНО: тепер DeleteObjectCommand)
+        await s3.send(new DeleteObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: textKey
+        })).catch((err) => {
+            console.log("Text file not found or already deleted:", err.message);
+        });
 
-        // Виправляємо на DeleteObjectCommand
-        const { DeleteObjectCommand: DelCmd } = require('@aws-sdk/client-s3');
-        await s3.send(new DelCmd({ Bucket: process.env.R2_BUCKET_NAME, Key: textKey })).catch(()=>{});
-
-        res.json({ success: true });
+        res.json({ success: true, message: "Deleted successfully" });
     } catch (error) {
+        console.error("Delete Error:", error);
         res.status(500).json({ error: error.message });
     }
 });
