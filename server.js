@@ -4,7 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
-const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
 
@@ -59,11 +59,11 @@ const verifyToken = async (req, res, next) => {
     } catch (e) {}
 
     try {
-        const gResponse = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
+        const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
             headers: { Authorization: `Bearer ${token}` }
         });
-        if (!gResponse.ok) throw new Error('Invalid Google Token');
-        const userData = await gResponse.json();
+        if (!response.ok) throw new Error('Invalid Google Token');
+        const userData = await response.json();
         req.user = { uid: userData.sub, email: userData.email };
         return next();
     } catch (error) {
@@ -97,7 +97,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
         const fileName = `rec_${Date.now()}.webm`;
         
         const userFolder = 'public_uploads'; 
-        const r2Key = `${userFolder}/${fileName}`;
+        const r2Key = `${userFolder}/${folder}/${fileName}`;
 
         await s3.send(new PutObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
@@ -111,7 +111,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
             Bucket: process.env.R2_BUCKET_NAME,
             Key: textKey,
             Body: transcription.text,
-            ContentType: "text/plain; charset=utf-8"
+            ContentType: "text/plain; charset=utf-8" // Fix for multi-language encoding
         }));
 
         fs.unlinkSync(newPath);
@@ -128,7 +128,7 @@ app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, 
     }
 });
 
-// ОТРИМАННЯ СПИСКУ
+// ОТРИМАННЯ СПИСКУ ВІДЕО ТА ТЕКСТІВ
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const userFolder = 'public_uploads';
@@ -145,10 +145,12 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
 
         const videos = videoFiles.map(item => {
             const textKey = item.Key.replace('.webm', '.txt');
+            const hasText = allKeys.has(textKey);
+
             return {
                 key: item.Key,
                 url: `${process.env.R2_PUBLIC_URL}/${item.Key}`,
-                textUrl: allKeys.has(textKey) ? `${process.env.R2_PUBLIC_URL}/${textKey}` : null,
+                textUrl: hasText ? `${process.env.R2_PUBLIC_URL}/${textKey}` : null,
                 uploadedAt: item.LastModified
             };
         });
@@ -160,54 +162,31 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     }
 });
 
-// 🔥 НОВИЙ МАРШРУТ: ВИДАЛЕННЯ
-app.delete('/api/delete-video', verifyToken, async (req, res) => {
-    try {
-        const { videoKey } = req.body;
-        if (!videoKey) return res.status(400).json({ error: "No key" });
-
-        const textKey = videoKey.replace('.webm', '.txt');
-
-        // Видаляємо відео
-        await s3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: videoKey
-        }));
-
-        // Видаляємо текст (якщо є)
-        await s3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: textKey
-        })).catch(() => {});
-
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// АНАЛІТИКА GPT
+// 🔥 AI ANALYSIS ENDPOINT
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const { textUrl } = req.body;
+        if (!textUrl) return res.status(400).json({ error: "No text URL" });
+
         const textRes = await fetch(textUrl);
-        const text = await textRes.text();
+        const originalText = await textRes.text();
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-                { role: "system", content: "Зроби короткий підсумок транскрибації відео. Використовуй мову оригіналу." },
-                { role: "user", content: text }
+                { role: "system", content: "You are a professional analyst. Summarize the provided video transcription into 3-4 key bullet points. Use the same language as the original text." },
+                { role: "user", content: originalText }
             ],
         });
 
         res.json({ analysis: completion.choices[0].message.content });
     } catch (error) {
-        res.status(500).json({ error: "Analysis failed" });
+        console.error("AI Analysis Error:", error);
+        res.status(500).json({ error: "AI Analysis failed" });
     }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 SUCCESS! Server is listening on 0.0.0.0:${PORT}`); //
 });
