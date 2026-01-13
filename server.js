@@ -4,221 +4,116 @@ const cors = require('cors');
 const multer = require('multer');
 const admin = require('firebase-admin');
 const { OpenAI } = require('openai');
-// 👇 ДОДАВ DeleteObjectCommand сюди
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
-const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. FIREBASE AUTH
+// Firebase
 let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 } else {
     try { serviceAccount = require('./serviceAccountKey.json'); } catch(e) {}
 }
+if (serviceAccount) admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 
-if (serviceAccount) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-}
-
-// 2. R2 STORAGE
+// R2
 const s3 = new S3Client({
     region: "auto",
     endpoint: process.env.R2_ENDPOINT,
-    credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
+    credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
 });
 
-// 3. OPENAI
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-// 4. MULTER
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ dest: 'uploads/' });
 
-// --- MIDDLEWARE AUTH ---
+// Middleware (Только для Админа)
 const verifyToken = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const token = authHeader.split('Bearer ')[1];
-
+    const token = req.headers.authorization?.split('Bearer ')[1];
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
     try {
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        req.user = decodedToken;
-        return next();
-    } catch (e) {}
-
-    try {
-        const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Invalid Google Token');
-        const userData = await response.json();
-        req.user = { uid: userData.sub, email: userData.email };
-        return next();
-    } catch (error) {
-        return res.status(403).json({ error: 'Forbidden' });
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.user = decoded;
+        next();
+    } catch (e) {
+        try {
+            const r = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, { headers: { Authorization: `Bearer ${token}` } });
+            if(!r.ok) throw new Error();
+            req.user = await r.json();
+            req.user.uid = req.user.sub;
+            next();
+        } catch { return res.status(403).json({ error: 'Forbidden' }); }
     }
 };
 
-// ================= ROUTES =================
-
-app.get('/', (req, res) => res.send('✅ VDFY Backend Ready'));
-
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-});
-
-// ЗАВАНТАЖЕННЯ ВІДЕО (+ AI)
-app.post('/api/upload-with-ai', verifyToken, upload.single('file'), async (req, res) => {
+// 🔓 ЗАГРУЗКА (SaaS: Клиент шлет видео Автору)
+app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
+        
+        // folder = UID Автора формы
+        const ownerUid = req.body.folder; 
+        if (!ownerUid) return res.status(400).json({ error: "Missing Form Owner UID" });
 
         const newPath = req.file.path + '.webm';
         fs.renameSync(req.file.path, newPath);
 
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(newPath),
-            model: "whisper-1",
-        });
-
-        const fileStream = fs.createReadStream(newPath);
-        const folder = req.body.folder || "Unsorted";
-        const fileName = `rec_${Date.now()}.webm`;
+        const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(newPath), model: "whisper-1" });
         
-        const userFolder = 'public_uploads'; 
-        const r2Key = `${userFolder}/${folder}/${fileName}`;
+        // Сохраняем в папку АВТОРА
+        const r2Key = `users/${ownerUid}/rec_${Date.now()}.webm`;
 
-        await s3.send(new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: r2Key,
-            Body: fileStream,
-            ContentType: "video/webm",
-        }));
-
-        const textKey = r2Key.replace('.webm', '.txt');
-        await s3.send(new PutObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: textKey,
-            Body: transcription.text,
-            ContentType: "text/plain; charset=utf-8"
+        await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(newPath), ContentType: "video/webm" }));
+        await s3.send(new PutObjectCommand({ 
+            Bucket: process.env.R2_BUCKET_NAME, 
+            Key: r2Key.replace('.webm', '.txt'), 
+            Body: transcription.text, 
+            ContentType: "text/plain; charset=utf-8" 
         }));
 
         fs.unlinkSync(newPath);
-
-        res.json({ 
-            success: true, 
-            publicUrl: `${process.env.R2_PUBLIC_URL}/${r2Key}`,
-            transcription: transcription.text
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: error.message });
-    }
+        res.json({ publicUrl: `${process.env.R2_PUBLIC_URL}/${r2Key}`, transcription: transcription.text });
+    } catch (e) { console.error(e); res.status(500).json({ error: e.message }); }
 });
 
-// ОТРИМАННЯ СПИСКУ ВІДЕО
+// 🔒 СПИСОК (Только мои видео)
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
-        const userFolder = 'public_uploads';
-        const command = new ListObjectsV2Command({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Prefix: `${userFolder}/`
-        });
-
-        const data = await s3.send(command);
-        if (!data.Contents) return res.json({ videos: [] });
-
-        const videoFiles = data.Contents.filter(item => item.Key.endsWith('.webm'));
-        const allKeys = new Set(data.Contents.map(item => item.Key));
-
-        const videos = videoFiles.map(item => {
-            const textKey = item.Key.replace('.webm', '.txt');
-            const hasText = allKeys.has(textKey);
-
-            return {
-                key: item.Key,
-                url: `${process.env.R2_PUBLIC_URL}/${item.Key}`,
-                textUrl: hasText ? `${process.env.R2_PUBLIC_URL}/${textKey}` : null,
-                uploadedAt: item.LastModified
-            };
-        });
-
-        videos.sort((a, b) => b.uploadedAt - a.uploadedAt);
-        res.json({ videos });
-    } catch (error) {
-        res.status(500).json({ error: "Failed to list videos" });
-    }
-});
-
-// AI АНАЛІЗ
-app.post('/api/analyze-text', verifyToken, async (req, res) => {
-    try {
-        const { textUrl } = req.body;
-        if (!textUrl) return res.status(400).json({ error: "No text URL" });
-
-        const textRes = await fetch(textUrl);
-        const originalText = await textRes.text();
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "system", content: "You are a professional analyst. Summarize the provided video transcription into 3-4 key bullet points. Use the same language as the original text." },
-                { role: "user", content: originalText }
-            ],
-        });
-
-        res.json({ analysis: completion.choices[0].message.content });
-    } catch (error) {
-        console.error("AI Analysis Error:", error);
-        res.status(500).json({ error: "AI Analysis failed" });
-    }
-});
-
-// 🔥 ВИПРАВЛЕНИЙ МАРШРУТ ВИДАЛЕННЯ
-app.delete('/api/delete-video', verifyToken, async (req, res) => {
-    try {
-        const { videoKey } = req.body;
-        if (!videoKey) return res.status(400).json({ error: "No videoKey provided" });
-
-        const textKey = videoKey.replace('.webm', '.txt');
-
-        console.log(`Deleting video: ${videoKey} and text: ${textKey}`);
-
-        // 1. Видаляємо відео
-        await s3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: videoKey
+        const myPrefix = `users/${req.user.uid}/`;
+        const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: myPrefix }));
+        
+        const videos = (data.Contents || []).filter(i => i.Key.endsWith('.webm')).map(i => ({
+            key: i.Key,
+            url: `${process.env.R2_PUBLIC_URL}/${i.Key}`,
+            textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace('.webm', '.txt')}`,
+            uploadedAt: i.LastModified
         }));
+        res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
+    } catch(e) { res.status(500).json({ error: "List failed" }); }
+});
 
-        // 2. Видаляємо текст (ВИПРАВЛЕНО: тепер DeleteObjectCommand)
-        await s3.send(new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: textKey
-        })).catch((err) => {
-            console.log("Text file not found or already deleted:", err.message);
-        });
+// 🔒 УДАЛЕНИЕ (Только свои)
+app.delete('/api/delete-video', verifyToken, async (req, res) => {
+    const { videoKey } = req.body;
+    if (!videoKey.startsWith(`users/${req.user.uid}/`)) return res.status(403).json({ error: "Access Denied" });
+    
+    await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey }));
+    await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace('.webm', '.txt') })).catch(()=>{});
+    res.json({ success: true });
+});
 
-        res.json({ success: true, message: "Deleted successfully" });
-    } catch (error) {
-        console.error("Delete Error:", error);
-        res.status(500).json({ error: error.message });
-    }
+// 🔒 АНАЛИЗ
+app.post('/api/analyze-text', verifyToken, async (req, res) => {
+    const text = await (await fetch(req.body.textUrl)).text();
+    const gpt = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: "Summarize briefly." }, { role: "user", content: text }]
+    });
+    res.json({ analysis: gpt.choices[0].message.content });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server is listening on 0.0.0.0:${PORT}`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log("🚀 Server running"));
