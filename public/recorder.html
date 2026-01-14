@@ -7,14 +7,32 @@
     <style>
         body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
         .container { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; max-width: 500px; width: 90%; }
-        video { width: 100%; background: black; border-radius: 8px; margin-bottom: 20px; max-height: 400px; }
+        
+        .video-wrapper { width: 100%; height: 300px; background: black; border-radius: 8px; margin-bottom: 20px; overflow: hidden; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        
         .btn { padding: 12px 24px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin: 5px; transition: 0.2s; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .btn-rec { background: #ef4444; color: white; }
         .btn-stop { background: #374151; color: white; display: none; }
-        .btn-send { background: #10b981; color: white; display: none; }
+        
+        /* Желтая кнопка для паузы */
+        .btn-pause { background: #f59e0b; color: white; display: none; }
+        .btn-resume { background: #10b981; color: white; display: none; }
+        
+        .action-buttons { display: none; justify-content: center; gap: 10px; }
+        .btn-send { background: #10b981; color: white; }
+        .btn-retake { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+        .btn-retake:hover { background: #e5e7eb; }
+
         .timer { font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .timer.paused { color: #f59e0b; animation: blink 1s infinite; }
+        
         .success-box { display: none; margin-top: 20px; padding: 15px; background: #d1fae5; border: 1px solid #10b981; border-radius: 8px; color: #065f46; word-break: break-all; }
         .copy-btn { background: white; border: 1px solid #10b981; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 12px; }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
@@ -23,12 +41,25 @@
     <h2>📹 Record Response</h2>
     <p style="color:#666; font-size:14px; margin-bottom:20px;">Please record your answer below.</p>
     
-    <video id="preview" autoplay muted playsinline></video>
+    <div class="video-wrapper">
+        <video id="preview" autoplay muted playsinline></video>
+    </div>
+
     <div class="timer" id="timer">00:00</div>
     
-    <button id="startBtn" class="btn btn-rec">🔴 Start Recording</button>
-    <button id="stopBtn" class="btn btn-stop">⏹ Stop</button>
-    <button id="sendBtn" class="btn btn-send">✅ Upload Video</button>
+    <div>
+        <button id="startBtn" class="btn btn-rec">🔴 Start</button>
+        
+        <button id="pauseBtn" class="btn btn-pause">⏸ Pause</button>
+        <button id="resumeBtn" class="btn btn-resume">▶ Resume</button>
+        
+        <button id="stopBtn" class="btn btn-stop">⏹ Stop</button>
+    </div>
+    
+    <div id="postRecordControls" class="action-buttons">
+        <button id="retakeBtn" class="btn btn-retake">🔄 Retake</button>
+        <button id="sendBtn" class="btn btn-send">✅ Upload Video</button>
+    </div>
 
     <div id="successView" class="success-box">
         <b>✅ Uploaded!</b><br>
@@ -40,88 +71,164 @@
 </div>
 
 <script>
-    const BACKEND_URL = window.location.origin; // Автоматично бере поточний домен
     const params = new URLSearchParams(window.location.search);
-    const targetEmail = params.get('to'); // Отримуємо email автора з посилання
+    const targetEmail = params.get('to');
 
     let stream, recorder, chunks = [], seconds = 0, interval;
     const preview = document.getElementById('preview');
     const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resumeBtn = document.getElementById('resumeBtn');
     const stopBtn = document.getElementById('stopBtn');
+    
+    const postControls = document.getElementById('postRecordControls');
     const sendBtn = document.getElementById('sendBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
     const timerEl = document.getElementById('timer');
 
-    // 1. Запуск камери
-    async function init() {
+    async function initCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             preview.srcObject = stream;
+            preview.src = "";
+            preview.muted = true;
+            preview.controls = false;
+            preview.play();
         } catch (e) {
             alert("Camera access denied! Please allow camera access.");
         }
     }
-    init();
+    initCamera();
 
-    // 2. Логіка запису
-    startBtn.onclick = () => {
-        chunks = [];
-        recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.start();
-        
-        startBtn.style.display = "none";
-        stopBtn.style.display = "inline-block";
-        
-        seconds = 0;
+    // Функция запуска таймера
+    function startTimerLogic() {
+        clearInterval(interval);
         interval = setInterval(() => {
             seconds++;
             const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
             const secs = (seconds % 60).toString().padStart(2, '0');
             timerEl.innerText = `${mins}:${secs}`;
         }, 1000);
+        timerEl.classList.remove('paused');
+    }
+
+    // Функция остановки таймера (без сброса времени)
+    function pauseTimerLogic() {
+        clearInterval(interval);
+        timerEl.classList.add('paused'); // Добавляем эффект мигания
+    }
+
+    // 1. СТАРТ
+    startBtn.onclick = () => {
+        chunks = [];
+        try { recorder = new MediaRecorder(stream); } 
+        catch (e) { alert("MediaRecorder not supported"); return; }
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+        
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const videoUrl = URL.createObjectURL(blob);
+            preview.srcObject = null;
+            preview.src = videoUrl;
+            preview.muted = false;
+            preview.controls = true;
+            
+            // Скрываем все кнопки управления записью
+            stopBtn.style.display = "none";
+            pauseBtn.style.display = "none";
+            resumeBtn.style.display = "none";
+            
+            postControls.style.display = "flex";
+            timerEl.classList.remove('paused');
+            timerEl.style.color = "#10b981";
+        };
+
+        recorder.start();
+        
+        startBtn.style.display = "none";
+        stopBtn.style.display = "inline-block";
+        pauseBtn.style.display = "inline-block"; // Показываем паузу
+        
+        seconds = 0;
+        timerEl.innerText = "00:00";
+        startTimerLogic();
     };
 
+    // 2. ПАУЗА
+    pauseBtn.onclick = () => {
+        if (recorder.state === "recording") {
+            recorder.pause();
+            pauseTimerLogic();
+            pauseBtn.style.display = "none";
+            resumeBtn.style.display = "inline-block"; // Показываем Resume
+        }
+    };
+
+    // 3. ВОЗОБНОВИТЬ (RESUME)
+    resumeBtn.onclick = () => {
+        if (recorder.state === "paused") {
+            recorder.resume();
+            startTimerLogic();
+            resumeBtn.style.display = "none";
+            pauseBtn.style.display = "inline-block"; // Показываем Pause
+        }
+    };
+
+    // 4. СТОП
     stopBtn.onclick = () => {
         recorder.stop();
         clearInterval(interval);
-        stopBtn.style.display = "none";
-        sendBtn.style.display = "inline-block";
-        timerEl.style.color = "#10b981";
     };
 
+    // 5. ПЕРЕЗАПИСЬ
+    retakeBtn.onclick = () => {
+        if(preview.src) URL.revokeObjectURL(preview.src);
+        
+        postControls.style.display = "none";
+        startBtn.style.display = "inline-block";
+        
+        timerEl.style.color = "#333";
+        timerEl.innerText = "00:00";
+        initCamera();
+    };
+
+    // 6. ОТПРАВКА
     sendBtn.onclick = async () => {
-        if (!targetEmail) return alert("Error: No recipient specified in URL.");
+        if (!targetEmail) return alert("Error: No recipient.");
         
         sendBtn.innerText = "⏳ Uploading...";
         sendBtn.disabled = true;
+        retakeBtn.disabled = true;
 
         const blob = new Blob(chunks, { type: 'video/webm' });
         const formData = new FormData();
         formData.append('file', blob, `rec_${Date.now()}.webm`);
-        formData.append('folder', targetEmail); // Відправляємо на email автора
+        formData.append('folder', targetEmail);
 
         try {
             const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
             if (!res.ok) throw new Error("Upload failed");
             const data = await res.json();
 
-            // Показуємо результат
             document.getElementById('successView').style.display = 'block';
             document.getElementById('videoLink').innerText = data.publicUrl;
-            sendBtn.style.display = "none";
+            
+            postControls.style.display = "none";
             preview.style.display = "none";
             
         } catch (e) {
             alert("Error: " + e.message);
             sendBtn.innerText = "❌ Try Again";
             sendBtn.disabled = false;
+            retakeBtn.disabled = false;
         }
     };
 
     window.copyLink = () => {
         const link = document.getElementById('videoLink').innerText;
         navigator.clipboard.writeText(link);
-        alert("Link copied! Now paste it in the Google Form.");
+        alert("Link copied!");
     };
 </script>
 
