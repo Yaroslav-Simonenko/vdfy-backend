@@ -2,53 +2,161 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Record Video Response</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VDFY Recorder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
-        .container { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; max-width: 500px; width: 90%; }
+        /* Базові налаштування */
+        body { 
+            margin: 0; 
+            font-family: 'Inter', sans-serif; 
+            background: #f0f2f5; 
+            color: #1f2937;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh;
+            /* Для мобільних браузерів з плаваючими панелями */
+            min-height: 100dvh; 
+            padding: 20px;
+            box-sizing: border-box;
+        }
         
-        .video-wrapper { width: 100%; height: 300px; background: black; border-radius: 8px; margin-bottom: 20px; overflow: hidden; position: relative; }
-        video { width: 100%; height: 100%; object-fit: cover; }
+        .container { 
+            background: white; 
+            padding: 24px; 
+            border-radius: 20px; 
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); 
+            text-align: center; 
+            width: 100%; 
+            max-width: 480px; 
+            box-sizing: border-box;
+        }
+
+        h2 { margin: 0 0 10px 0; font-size: 20px; color: #111827; }
+        p { color: #6b7280; font-size: 14px; margin: 0 0 20px 0; }
         
-        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin: 5px; transition: 0.2s; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* Перемикач режимів */
+        .mode-switch { 
+            display: flex; 
+            background: #f3f4f6; 
+            padding: 4px; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+        }
+        .mode-btn { 
+            flex: 1; 
+            border: none; 
+            background: transparent; 
+            padding: 10px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            color: #6b7280; 
+            transition: 0.2s; 
+            font-size: 14px;
+        }
+        .mode-btn.active { background: white; color: #2563eb; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* Контейнер медіа */
+        .media-wrapper { 
+            width: 100%; 
+            /* Аспектне співвідношення 4:3 (стандарт камер) */
+            aspect-ratio: 4/3; 
+            background: black; 
+            border-radius: 16px; 
+            margin-bottom: 20px; 
+            overflow: hidden; 
+            position: relative; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        
+        /* Аудіо візуалізація */
+        .audio-visual { display: none; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; background: #1f2937; }
+        .mic-icon { font-size: 50px; color: #fff; background: #374151; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; transition: 0.2s; }
+        .audio-visual.recording .mic-icon { animation: pulse-red 1.5s infinite; background: #ef4444; }
+        
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+        audio { width: 90%; margin-top: 10px; display: none; }
+
+        /* Кнопки */
+        .controls-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        
+        .btn { 
+            padding: 14px 20px; 
+            border-radius: 12px; 
+            border: none; 
+            font-size: 15px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.1s; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px;
+            width: 100%; /* На мобільному на всю ширину */
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .btn-rec { background: #ef4444; color: white; }
         .btn-stop { background: #374151; color: white; display: none; }
+        .btn-pause { background: #f59e0b; color: white; display: none; flex: 1; }
+        .btn-resume { background: #10b981; color: white; display: none; flex: 1; }
         
-        /* Желтая кнопка для паузы */
-        .btn-pause { background: #f59e0b; color: white; display: none; }
-        .btn-resume { background: #10b981; color: white; display: none; }
-        
-        .action-buttons { display: none; justify-content: center; gap: 10px; }
+        .action-buttons { display: none; flex-direction: column; gap: 10px; width: 100%; }
         .btn-send { background: #10b981; color: white; }
         .btn-retake { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
-        .btn-retake:hover { background: #e5e7eb; }
-
-        .timer { font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        
+        .timer { font-size: 28px; font-weight: 700; margin-bottom: 20px; color: #111827; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
         .timer.paused { color: #f59e0b; animation: blink 1s infinite; }
         
-        .success-box { display: none; margin-top: 20px; padding: 15px; background: #d1fae5; border: 1px solid #10b981; border-radius: 8px; color: #065f46; word-break: break-all; }
-        .copy-btn { background: white; border: 1px solid #10b981; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 12px; }
+        .success-box { display: none; margin-top: 20px; padding: 20px; background: #dcfce7; border: 1px solid #86efac; border-radius: 12px; color: #166534; }
+        .video-link { font-family: monospace; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; font-size: 13px; word-break: break-all; margin: 10px 0; }
+        .copy-btn { background: #16a34a; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 5px; }
 
         @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* Адаптивність для планшетів та десктопів */
+        @media (min-width: 600px) {
+            .btn { width: auto; min-width: 140px; }
+            .action-buttons { flex-direction: row; }
+            .btn-rec { width: 100%; }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>📹 Record Response</h2>
-    <p style="color:#666; font-size:14px; margin-bottom:20px;">Please record your answer below.</p>
+    <h2>Record Response</h2>
+    <p>Please record your answer for the recruiter.</p>
     
-    <div class="video-wrapper">
+    <div class="mode-switch">
+        <button id="modeVideo" class="mode-btn active" onclick="switchMode('video')">🎥 Video</button>
+        <button id="modeAudio" class="mode-btn" onclick="switchMode('audio')">🎤 Audio Only</button>
+    </div>
+    
+    <div class="media-wrapper">
         <video id="preview" autoplay muted playsinline></video>
+        
+        <div id="audioVisualizer" class="audio-visual">
+            <div class="mic-icon">🎤</div>
+            <div style="color:white; font-size:14px; opacity: 0.8;">Microphone Active</div>
+        </div>
+
+        <audio id="audioPreview" controls></audio>
     </div>
 
     <div class="timer" id="timer">00:00</div>
     
-    <div>
-        <button id="startBtn" class="btn btn-rec">🔴 Start</button>
+    <div class="controls-row">
+        <button id="startBtn" class="btn btn-rec">🔴 Start Recording</button>
         
         <button id="pauseBtn" class="btn btn-pause">⏸ Pause</button>
         <button id="resumeBtn" class="btn btn-resume">▶ Resume</button>
@@ -58,14 +166,15 @@
     
     <div id="postRecordControls" class="action-buttons">
         <button id="retakeBtn" class="btn btn-retake">🔄 Retake</button>
-        <button id="sendBtn" class="btn btn-send">✅ Upload Video</button>
+        <button id="sendBtn" class="btn btn-send">✅ Upload Response</button>
     </div>
 
     <div id="successView" class="success-box">
-        <b>✅ Uploaded!</b><br>
-        Copy this link and paste it into the form:<br><br>
-        <b id="videoLink">...</b>
-        <br>
+        <div style="font-weight:bold; font-size:18px; margin-bottom:5px;">🎉 Uploaded!</div>
+        <div style="font-size:14px; opacity:0.8;">Copy this link and paste it into the form:</div>
+        
+        <div id="videoLink" class="video-link">...</div>
+        
         <button class="copy-btn" onclick="copyLink()">📋 Copy Link</button>
     </div>
 </div>
@@ -73,34 +182,67 @@
 <script>
     const params = new URLSearchParams(window.location.search);
     const targetEmail = params.get('to');
-
+    
+    let currentMode = 'video';
     let stream, recorder, chunks = [], seconds = 0, interval;
+
     const preview = document.getElementById('preview');
+    const audioVisualizer = document.getElementById('audioVisualizer');
+    const audioPreview = document.getElementById('audioPreview');
     const startBtn = document.getElementById('startBtn');
     const pauseBtn = document.getElementById('pauseBtn');
     const resumeBtn = document.getElementById('resumeBtn');
     const stopBtn = document.getElementById('stopBtn');
-    
     const postControls = document.getElementById('postRecordControls');
     const sendBtn = document.getElementById('sendBtn');
     const retakeBtn = document.getElementById('retakeBtn');
     const timerEl = document.getElementById('timer');
 
-    async function initCamera() {
+    async function initMedia() {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+
+        // Для мобільних важливо вказувати exact constraints або ideal
+        const constraints = currentMode === 'video' 
+            ? { video: { facingMode: "user" }, audio: true } // Фронтальна камера
+            : { video: false, audio: true };
+
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            preview.srcObject = stream;
-            preview.src = "";
-            preview.muted = true;
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            if (currentMode === 'video') {
+                preview.style.display = 'block';
+                audioVisualizer.style.display = 'none';
+                preview.srcObject = stream;
+                preview.muted = true;
+            } else {
+                preview.style.display = 'none';
+                audioVisualizer.style.display = 'flex';
+            }
+            
+            audioPreview.style.display = 'none';
             preview.controls = false;
-            preview.play();
+            
         } catch (e) {
-            alert("Camera access denied! Please allow camera access.");
+            alert("Error: Camera/Microphone access needed.");
         }
     }
-    initCamera();
 
-    // Функция запуска таймера
+    window.switchMode = (mode) => {
+        if (recorder && recorder.state !== 'inactive') {
+            if(!confirm("Stop current recording?")) return;
+            stopRecordingLogic();
+        }
+        currentMode = mode;
+        document.getElementById('modeVideo').classList.toggle('active', mode === 'video');
+        document.getElementById('modeAudio').classList.toggle('active', mode === 'audio');
+        postControls.style.display = "none";
+        startBtn.style.display = "flex";
+        timerEl.innerText = "00:00";
+        initMedia();
+    };
+
+    initMedia();
+
     function startTimerLogic() {
         clearInterval(interval);
         interval = setInterval(() => {
@@ -112,90 +254,102 @@
         timerEl.classList.remove('paused');
     }
 
-    // Функция остановки таймера (без сброса времени)
     function pauseTimerLogic() {
         clearInterval(interval);
-        timerEl.classList.add('paused'); // Добавляем эффект мигания
+        timerEl.classList.add('paused');
     }
 
-    // 1. СТАРТ
     startBtn.onclick = () => {
         chunks = [];
-        try { recorder = new MediaRecorder(stream); } 
-        catch (e) { alert("MediaRecorder not supported"); return; }
+        // Вказуємо MIME-типи для кращої сумісності
+        let options = { mimeType: 'video/webm;codecs=vp8,opus' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            options = { mimeType: 'video/mp4' }; // Fallback для Safari
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = undefined; // Браузер сам вирішить
+            }
+        }
 
-        recorder.ondataavailable = e => chunks.push(e.data);
+        try { recorder = new MediaRecorder(stream, options); } 
+        catch(e) { alert("Recorder error: " + e.message); return; }
+
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
         
         recorder.onstop = () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
-            const videoUrl = URL.createObjectURL(blob);
-            preview.srcObject = null;
-            preview.src = videoUrl;
-            preview.muted = false;
-            preview.controls = true;
+            const url = URL.createObjectURL(blob);
             
-            // Скрываем все кнопки управления записью
+            if (currentMode === 'video') {
+                preview.srcObject = null;
+                preview.src = url;
+                preview.muted = false;
+                preview.controls = true;
+                preview.style.display = 'block';
+                audioVisualizer.style.display = 'none';
+            } else {
+                audioVisualizer.style.display = 'none';
+                audioPreview.src = url;
+                audioPreview.style.display = 'block';
+            }
+            
             stopBtn.style.display = "none";
             pauseBtn.style.display = "none";
             resumeBtn.style.display = "none";
-            
             postControls.style.display = "flex";
             timerEl.classList.remove('paused');
             timerEl.style.color = "#10b981";
+            if (currentMode === 'audio') audioVisualizer.classList.remove('recording');
         };
 
         recorder.start();
-        
         startBtn.style.display = "none";
-        stopBtn.style.display = "inline-block";
-        pauseBtn.style.display = "inline-block"; // Показываем паузу
-        
+        stopBtn.style.display = "flex";
+        pauseBtn.style.display = "flex";
+        if (currentMode === 'audio') audioVisualizer.classList.add('recording');
         seconds = 0;
         timerEl.innerText = "00:00";
         startTimerLogic();
     };
 
-    // 2. ПАУЗА
     pauseBtn.onclick = () => {
         if (recorder.state === "recording") {
             recorder.pause();
             pauseTimerLogic();
             pauseBtn.style.display = "none";
-            resumeBtn.style.display = "inline-block"; // Показываем Resume
+            resumeBtn.style.display = "flex";
+            if (currentMode === 'audio') audioVisualizer.classList.remove('recording');
         }
     };
 
-    // 3. ВОЗОБНОВИТЬ (RESUME)
     resumeBtn.onclick = () => {
         if (recorder.state === "paused") {
             recorder.resume();
             startTimerLogic();
             resumeBtn.style.display = "none";
-            pauseBtn.style.display = "inline-block"; // Показываем Pause
+            pauseBtn.style.display = "flex";
+            if (currentMode === 'audio') audioVisualizer.classList.add('recording');
         }
     };
 
-    // 4. СТОП
-    stopBtn.onclick = () => {
-        recorder.stop();
-        clearInterval(interval);
-    };
+    stopBtn.onclick = () => { recorder.stop(); clearInterval(interval); };
 
-    // 5. ПЕРЕЗАПИСЬ
+    function stopRecordingLogic() {
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+        clearInterval(interval);
+    }
+
     retakeBtn.onclick = () => {
         if(preview.src) URL.revokeObjectURL(preview.src);
-        
+        if(audioPreview.src) URL.revokeObjectURL(audioPreview.src);
         postControls.style.display = "none";
-        startBtn.style.display = "inline-block";
-        
-        timerEl.style.color = "#333";
+        startBtn.style.display = "flex";
+        timerEl.style.color = "#111827";
         timerEl.innerText = "00:00";
-        initCamera();
+        initMedia();
     };
 
-    // 6. ОТПРАВКА
     sendBtn.onclick = async () => {
-        if (!targetEmail) return alert("Error: No recipient.");
+        if (!targetEmail) return alert("Link Error: No recipient found.");
         
         sendBtn.innerText = "⏳ Uploading...";
         sendBtn.disabled = true;
@@ -203,7 +357,8 @@
 
         const blob = new Blob(chunks, { type: 'video/webm' });
         const formData = new FormData();
-        formData.append('file', blob, `rec_${Date.now()}.webm`);
+        const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
+        formData.append('file', blob, `${prefix}${Date.now()}.webm`);
         formData.append('folder', targetEmail);
 
         try {
@@ -215,7 +370,9 @@
             document.getElementById('videoLink').innerText = data.publicUrl;
             
             postControls.style.display = "none";
-            preview.style.display = "none";
+            preview.style.display = "none"; 
+            audioPreview.style.display = "none";
+            audioVisualizer.style.display = "none";
             
         } catch (e) {
             alert("Error: " + e.message);
