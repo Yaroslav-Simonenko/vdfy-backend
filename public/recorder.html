@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Video Response</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f0f2f5; }
+        .container { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); text-align: center; max-width: 500px; width: 90%; }
+        video { width: 100%; background: black; border-radius: 8px; margin-bottom: 20px; max-height: 400px; }
+        .btn { padding: 12px 24px; border-radius: 8px; border: none; font-size: 16px; font-weight: bold; cursor: pointer; margin: 5px; transition: 0.2s; }
+        .btn-rec { background: #ef4444; color: white; }
+        .btn-stop { background: #374151; color: white; display: none; }
+        .btn-send { background: #10b981; color: white; display: none; }
+        .timer { font-size: 24px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .success-box { display: none; margin-top: 20px; padding: 15px; background: #d1fae5; border: 1px solid #10b981; border-radius: 8px; color: #065f46; word-break: break-all; }
+        .copy-btn { background: white; border: 1px solid #10b981; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📹 Record Response</h2>
+    <p style="color:#666; font-size:14px; margin-bottom:20px;">Please record your answer below.</p>
+    
+    <video id="preview" autoplay muted playsinline></video>
+    <div class="timer" id="timer">00:00</div>
+    
+    <button id="startBtn" class="btn btn-rec">🔴 Start Recording</button>
+    <button id="stopBtn" class="btn btn-stop">⏹ Stop</button>
+    <button id="sendBtn" class="btn btn-send">✅ Upload Video</button>
+
+    <div id="successView" class="success-box">
+        <b>✅ Uploaded!</b><br>
+        Copy this link and paste it into the form:<br><br>
+        <b id="videoLink">...</b>
+        <br>
+        <button class="copy-btn" onclick="copyLink()">📋 Copy Link</button>
+    </div>
+</div>
+
+<script>
+    const BACKEND_URL = window.location.origin; // Автоматично бере поточний домен
+    const params = new URLSearchParams(window.location.search);
+    const targetEmail = params.get('to'); // Отримуємо email автора з посилання
+
+    let stream, recorder, chunks = [], seconds = 0, interval;
+    const preview = document.getElementById('preview');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const timerEl = document.getElementById('timer');
+
+    // 1. Запуск камери
+    async function init() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            preview.srcObject = stream;
+        } catch (e) {
+            alert("Camera access denied! Please allow camera access.");
+        }
+    }
+    init();
+
+    // 2. Логіка запису
+    startBtn.onclick = () => {
+        chunks = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.start();
+        
+        startBtn.style.display = "none";
+        stopBtn.style.display = "inline-block";
+        
+        seconds = 0;
+        interval = setInterval(() => {
+            seconds++;
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${mins}:${secs}`;
+        }, 1000);
+    };
+
+    stopBtn.onclick = () => {
+        recorder.stop();
+        clearInterval(interval);
+        stopBtn.style.display = "none";
+        sendBtn.style.display = "inline-block";
+        timerEl.style.color = "#10b981";
+    };
+
+    sendBtn.onclick = async () => {
+        if (!targetEmail) return alert("Error: No recipient specified in URL.");
+        
+        sendBtn.innerText = "⏳ Uploading...";
+        sendBtn.disabled = true;
+
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const formData = new FormData();
+        formData.append('file', blob, `rec_${Date.now()}.webm`);
+        formData.append('folder', targetEmail); // Відправляємо на email автора
+
+        try {
+            const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error("Upload failed");
+            const data = await res.json();
+
+            // Показуємо результат
+            document.getElementById('successView').style.display = 'block';
+            document.getElementById('videoLink').innerText = data.publicUrl;
+            sendBtn.style.display = "none";
+            preview.style.display = "none";
+            
+        } catch (e) {
+            alert("Error: " + e.message);
+            sendBtn.innerText = "❌ Try Again";
+            sendBtn.disabled = false;
+        }
+    };
+
+    window.copyLink = () => {
+        const link = document.getElementById('videoLink').innerText;
+        navigator.clipboard.writeText(link);
+        alert("Link copied! Now paste it in the Google Form.");
+    };
+</script>
+
+</body>
+</html>
