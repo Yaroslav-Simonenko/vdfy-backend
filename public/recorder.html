@@ -358,13 +358,8 @@
         const blob = new Blob(chunks, { type: 'video/webm' });
         const formData = new FormData();
         const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
-        
-        // 🔥 ОТРИМУЄМО НАЗВУ ФОРМИ З URL
-        const formName = params.get('form') || "General";
-
         formData.append('file', blob, `${prefix}${Date.now()}.webm`);
         formData.append('folder', targetEmail);
-        formData.append('subfolder', formName); // 🔥 ПЕРЕДАЄМО НА СЕРВЕР
 
         try {
             const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });

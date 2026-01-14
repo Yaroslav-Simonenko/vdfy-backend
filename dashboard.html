@@ -175,22 +175,18 @@
 
         function renderVideos(videos) {
             if (!videos || videos.length === 0) {
-                container.innerHTML = `<p style='text-align:center;color:#666;grid-column:1/-1;'>No videos yet.</p>`;
+                container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:gray;">
+                    <h3>No videos yet 📭</h3>
+                    <p>Linked to: ${auth.currentUser.email}</p>
+                </div>`;
                 return;
             }
-            
             container.innerHTML = videos.map(v => `
                 <div class="card">
-                    <div style="background:#e0f2fe; color:#0369a1; padding:6px 12px; font-size:12px; font-weight:bold; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; gap:6px;">
-                        📁 ${v.formName}
-                    </div>
-
                     <div class="card-preview"><video controls src="${v.url}"></video></div>
-                    
                     <div class="card-body">
-                        <div style="display:flex; justify-content:space-between; font-size:12px; color:gray; margin-bottom:10px;">
-                            <span>${new Date(v.uploadedAt).toLocaleString()}</span>
-                        </div>
+                        <div style="font-weight:600">📹 Response</div>
+                        <div style="font-size:12px; color:gray">${new Date(v.uploadedAt).toLocaleString()}</div>
                         <div class="actions">
                             <a href="${v.url}" target="_blank" class="btn btn-outline">Video</a>
                             ${v.textUrl ? `<button class="btn btn-outline" onclick="viewText('${v.textUrl}')">Text</button>` : ''}
@@ -211,5 +207,3 @@
     </script>
 </body>
 </html>
-
-
