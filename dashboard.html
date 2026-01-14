@@ -35,8 +35,8 @@
         .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
         
+        /* Стиль для відображення Email */
         .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
-        .copy-link { color: #2563eb; cursor: pointer; text-decoration: underline; margin-top: 4px; display: inline-block; }
 
         #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
@@ -54,9 +54,8 @@
         <div class="logo">🎥 VDFY</div>
         
         <div class="id-box">
-            <b>YOUR ID (For forms):</b><br>
-            <span id="user-uid">Loading...</span>
-            <div class="copy-link" onclick="copyTag()">📋 Copy Form Tag</div>
+            <b>Linked Account:</b><br>
+            <span id="user-email">Loading...</span>
         </div>
 
         <div class="nav-item active" onclick="switchTab('videos')">📁 Recordings</div>
@@ -91,8 +90,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-         // 👇 INSERT YOUR FIREBASE CONFIG
-         const firebaseConfig = {
+          // 👇 INSERT YOUR FIREBASE CONFIG
+          const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
     projectId: "vdfy-auth-system",
@@ -106,7 +105,6 @@
 
         const loginScreen = document.getElementById('login-screen');
         const container = document.getElementById('video-container');
-        let currentUid = "";
 
         document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         document.getElementById('logout-btn').onclick = () => signOut(auth);
@@ -116,20 +114,14 @@
                 loginScreen.classList.add('hidden');
                 document.getElementById('user-name').textContent = user.displayName;
                 document.getElementById('user-avatar').src = user.photoURL;
-                document.getElementById('user-uid').textContent = user.uid;
-                currentUid = user.uid;
+                // Показуємо Email
+                document.getElementById('user-email').textContent = user.email;
                 loadVideos(user);
             } else {
                 loginScreen.classList.remove('hidden');
             }
         });
 
-        window.copyTag = () => {
-            navigator.clipboard.writeText(`[[type=video uid=${currentUid}]]`);
-            alert("Tag copied! Paste it into your Google Form question.");
-        };
-
-        // ... Ті самі функції аналізу та перегляду тексту ...
         window.viewText = async (url) => {
             try {
                 const res = await fetch(url);
@@ -185,7 +177,7 @@
             if (!videos || videos.length === 0) {
                 container.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:gray;">
                     <h3>No videos yet 📭</h3>
-                    <p>Create a form using the ID on the left, and new responses will appear here.</p>
+                    <p>Linked to: ${auth.currentUser.email}</p>
                 </div>`;
                 return;
             }
