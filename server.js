@@ -69,7 +69,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         // Отримуємо EMAIL автора форми (замість UID)
         const ownerEmail = req.body.folder; 
         if (!ownerEmail || !ownerEmail.includes('@')) {
-            // Fallback: якщо email не прийшов, кладемо в папку public
             console.log("No valid email provided, using public folder");
         }
 
@@ -129,15 +128,36 @@ app.delete('/api/delete-video', verifyToken, async (req, res) => {
     res.json({ success: true });
 });
 
-// 🔒 4. AI
+// 🔒 4. AI АНАЛІЗ (ПОКРАЩЕНИЙ ПРОМПТ)
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
-    const textRes = await fetch(req.body.textUrl);
-    const text = await textRes.text();
-    const gpt = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "system", content: "Summarize." }, { role: "user", content: text }]
-    });
-    res.json({ analysis: gpt.choices[0].message.content });
+    try {
+        const { textUrl } = req.body;
+        const textRes = await fetch(textUrl);
+        const originalText = await textRes.text();
+
+        // Перевірка на пустий текст
+        if (!originalText || originalText.length < 5) {
+            return res.json({ analysis: "Текст занадто короткий для аналізу." });
+        }
+
+        const gpt = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+                { 
+                    role: "system", 
+                    content: "Ты профессиональный аналитик. Твоя задача — сделать структурированное резюме (summary) этого текста.\n" +
+                             "1. Суть: Кратко опиши, о чем говорит человек (1-2 предложения).\n" +
+                             "2. Детали: Выдели ключевые факты или аргументы маркированным списком.\n" +
+                             "Отвечай на том же языке, на котором написан текст."
+                }, 
+                { role: "user", content: originalText }
+            ]
+        });
+        res.json({ analysis: gpt.choices[0].message.content });
+    } catch (error) {
+        console.error("AI Error:", error);
+        res.status(500).json({ error: "AI Analysis failed" });
+    }
 });
 
 app.listen(3000, '0.0.0.0', () => console.log("🚀 Server running on 3000"));
