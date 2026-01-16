@@ -195,4 +195,4 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
         });
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
-});
+}); 
