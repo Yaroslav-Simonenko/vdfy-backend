@@ -7,12 +7,21 @@ const { OpenAI } = require('openai');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
+const ffmpeg = require('fluent-ffmpeg'); // 🔥 Нова бібліотека
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public')); 
 
+// 1. 🔥 Збільшуємо ліміти для великих файлів
+app.use(cors());
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
+app.use(express.static('public'));
+
+// Налаштування тайм-ауту сервера (10 хвилин), щоб не розривав з'єднання при довгому завантаженні
+const server = app.listen(3000, '0.0.0.0', () => console.log("🚀 Server running"));
+server.setTimeout(600000); 
+
+// Firebase
 let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -24,6 +33,7 @@ if (serviceAccount) {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 }
 
+// R2 Storage
 const s3 = new S3Client({
     region: "auto",
     endpoint: process.env.R2_ENDPOINT,
@@ -33,9 +43,9 @@ const s3 = new S3Client({
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ dest: 'uploads/' });
 
-// Очистка назви папки
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 
+// Middleware Auth
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -52,36 +62,98 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
-app.get('/', (req, res) => res.send('✅ Server Ready'));
+app.get('/', (req, res) => res.send('✅ VDFY Server Ready (FFmpeg Enabled)'));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/recorder.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'recorder.html')));
 
-// 1. ЗАВАНТАЖЕННЯ (З папками)
+// 🔥 ФУНКЦІЯ СТИСНЕННЯ ВІДЕО
+const compressVideo = (inputPath, outputPath) => {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath)
+            .outputOptions([
+                '-vcodec libx264', // Кодек
+                '-crf 28',         // Рівень стиснення (чим більше, тим менша якість. 28 - оптимально для вебу)
+                '-preset veryfast',// Швидкість кодування
+                '-acodec aac',     // Аудіо кодек
+                '-b:a 128k'        // Бітрейт аудіо
+            ])
+            .save(outputPath)
+            .on('end', () => resolve(outputPath))
+            .on('error', (err) => reject(err));
+    });
+};
+
+// 1. UPLOAD (З компресією)
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
+    // Збільшуємо тайм-аут для цього конкретного запиту
+    req.setTimeout(600000); 
+    
+    let tempPath = null;
+    let compressedPath = null;
+
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
         
         const ownerEmail = req.body.folder; 
         const formName = req.body.subfolder ? sanitize(req.body.subfolder) : "General"; 
-        
-        // Шлях: users / email / form_name / file
         const emailFolder = (ownerEmail && ownerEmail.includes('@')) ? ownerEmail.replace(/[@.]/g, '_') : "public";
-        const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.webm`;
+        
+        // Оригінальний файл
+        tempPath = req.file.path;
+        
+        // Шлях для стиснутого файлу
+        compressedPath = tempPath + '_compressed.mp4'; // Конвертуємо все в mp4 для сумісності
 
-        const newPath = req.file.path + '.webm';
-        fs.renameSync(req.file.path, newPath);
+        console.log("⏳ Compressing video...");
+        
+        // 🔥 ЗАПУСК СТИСНЕННЯ (Якщо це відео)
+        // Якщо файл маленький (< 5MB), можна не стискати, але для уніфікації стиснемо все
+        await compressVideo(tempPath, compressedPath);
+        
+        console.log("✅ Compression done. Transcribing...");
 
-        const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(newPath), model: "whisper-1" });
+        // Транскрибація (використовуємо стиснутий файл - це швидше)
+        const transcription = await openai.audio.transcriptions.create({ 
+            file: fs.createReadStream(compressedPath), 
+            model: "whisper-1" 
+        });
 
-        await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(newPath), ContentType: "video/webm" }));
-        await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.webm', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
+        const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
 
-        fs.unlinkSync(newPath);
+        // Завантаження в R2
+        await s3.send(new PutObjectCommand({ 
+            Bucket: process.env.R2_BUCKET_NAME, 
+            Key: r2Key, 
+            Body: fs.createReadStream(compressedPath), 
+            ContentType: "video/mp4" 
+        }));
+
+        // Завантаження тексту
+        await s3.send(new PutObjectCommand({ 
+            Bucket: process.env.R2_BUCKET_NAME, 
+            Key: r2Key.replace('.mp4', '.txt'), 
+            Body: transcription.text, 
+            ContentType: "text/plain; charset=utf-8" 
+        }));
+
+        // Видалення тимчасових файлів
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
+
         res.json({ publicUrl: `${process.env.R2_PUBLIC_URL}/${r2Key}`, transcription: transcription.text });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+
+    } catch (e) { 
+        console.error("Upload Error:", e);
+        // Чистка при помилці
+        if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (compressedPath && fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
+        res.status(500).json({ error: e.message || "Upload failed" }); 
+    }
 });
 
-// 2. СПИСОК (Визначає папку)
+// ... (Решта коду LIST, DELETE, ANALYZE - без змін, окрім розширень файлів) ...
+
+// 2. LIST (Оновлений під .mp4)
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     const email = req.user.email;
     if (!email) return res.json({ videos: [] });
@@ -89,17 +161,15 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     
     const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: `users/${emailFolder}/` }));
     
-    const videos = (data.Contents || []).filter(i => i.Key.endsWith('.webm')).map(i => {
-        // Парсимо: users/email/FORM_NAME/file.webm
+    const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4') || i.Key.endsWith('.webm')).map(i => {
         const parts = i.Key.split('/');
         const formName = parts.length > 3 ? decodeURIComponent(parts[2]) : "General";
-
         return {
             key: i.Key,
             url: `${process.env.R2_PUBLIC_URL}/${i.Key}`,
-            textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace('.webm', '.txt')}`,
+            textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace(/\.(mp4|webm)$/, '.txt')}`,
             uploadedAt: i.LastModified,
-            formName: formName // Повертаємо назву форми
+            formName: formName
         };
     });
     res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
@@ -110,7 +180,8 @@ app.delete('/api/delete-video', verifyToken, async (req, res) => {
     if (!req.body.videoKey.startsWith(`users/${emailFolder}/`)) return res.status(403).json({ error: "Access Denied" });
     
     await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: req.body.videoKey }));
-    await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: req.body.videoKey.replace('.webm', '.txt') })).catch(()=>{});
+    // Видаляємо текст незалежно від розширення відео
+    await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: req.body.videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
     res.json({ success: true });
 });
 
@@ -125,5 +196,3 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
 });
-
-app.listen(3000, '0.0.0.0', () => console.log("🚀 Server running"));
