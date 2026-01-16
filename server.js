@@ -7,7 +7,11 @@ const { OpenAI } = require('openai');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
-const ffmpeg = require('fluent-ffmpeg'); // 🔥 Нова бібліотека
+
+// 🔥 ОСЬ ЦЕ ГОЛОВНЕ ВИПРАВЛЕННЯ:
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static'); // Імпортуємо саму програму
+ffmpeg.setFfmpegPath(ffmpegPath);            // Кажемо бібліотеці використовувати саме її
 
 const app = express();
 
@@ -195,4 +199,4 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
         });
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
-}); 
+});  
