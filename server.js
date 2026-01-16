@@ -122,7 +122,10 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         await compressVideo(tempPath, compressedPath);
 
         const transcription = await openai.audio.transcriptions.create({ 
-            file: fs.createReadStream(compressedPath), model: "whisper-1" 
+            file: fs.createReadStream(compressedPath), 
+            model: "whisper-1",
+            // 🔥 ДОДАЙ ЦЕЙ РЯДОК. Це підказка для AI, щоб він краще розумів контекст.
+            prompt: "Це відео-відповідь на вакансію. Мова може бути українською, російською або англійською." 
         });
 
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
