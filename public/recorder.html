@@ -1,209 +1,302 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366F1">
     <title>VDFY Recorder</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Базові налаштування */
-        body { 
-            margin: 0; 
-            font-family: 'Inter', sans-serif; 
-            background: #f0f2f5; 
-            color: #1f2937;
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: center; 
+        :root {
+            --primary: #6366F1; /* Electric Indigo */
+            --primary-dark: #4f46e5;
+            --danger: #ef4444;
+            --success: #10b981;
+            --bg: #F3F4F6;
+            --surface: #ffffff;
+            --text-main: #111827;
+            --text-sec: #6b7280;
+            --radius: 24px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             min-height: 100vh;
-            /* Для мобільних браузерів з плаваючими панелями */
-            min-height: 100dvh; 
+            min-height: 100dvh;
+            color: var(--text-main);
             padding: 20px;
             box-sizing: border-box;
         }
-        
-        .container { 
-            background: white; 
-            padding: 24px; 
-            border-radius: 20px; 
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); 
-            text-align: center; 
-            width: 100%; 
-            max-width: 480px; 
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            background: var(--surface);
+            padding: 24px;
+            border-radius: var(--radius);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
             box-sizing: border-box;
+            transition: all 0.3s ease;
         }
 
-        h2 { margin: 0 0 10px 0; font-size: 20px; color: #111827; }
-        p { color: #6b7280; font-size: 14px; margin: 0 0 20px 0; }
-        
-        /* Перемикач режимів */
-        .mode-switch { 
-            display: flex; 
-            background: #f3f4f6; 
-            padding: 4px; 
-            border-radius: 12px; 
-            margin-bottom: 20px; 
+        /* Header */
+        header { text-align: center; }
+        h2 { margin: 0; font-size: 20px; font-weight: 700; color: var(--text-main); }
+        .subtitle { font-size: 14px; color: var(--text-sec); margin-top: 4px; }
+
+        /* Media Area */
+        .media-wrapper {
+            width: 100%;
+            aspect-ratio: 3/4; /* Портретний режим */
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
         }
-        .mode-btn { 
-            flex: 1; 
-            border: none; 
-            background: transparent; 
-            padding: 10px; 
-            border-radius: 10px; 
-            cursor: pointer; 
-            font-weight: 600; 
-            color: #6b7280; 
-            transition: 0.2s; 
-            font-size: 14px;
+
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+        
+        /* Audio visualizer */
+        .audio-visual {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: linear-gradient(135deg, #1e1b4b, #312e81);
         }
-        .mode-btn.active { background: white; color: #2563eb; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-        /* Контейнер медіа */
-        .media-wrapper { 
-            width: 100%; 
-            /* Аспектне співвідношення 4:3 (стандарт камер) */
-            aspect-ratio: 4/3; 
-            background: black; 
-            border-radius: 16px; 
-            margin-bottom: 20px; 
-            overflow: hidden; 
-            position: relative; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
+        .mic-circle {
+            width: 80px; height: 80px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; color: white;
+            transition: 0.2s;
         }
-        
-        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-        
-        /* Аудіо візуалізація */
-        .audio-visual { display: none; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; background: #1f2937; }
-        .mic-icon { font-size: 50px; color: #fff; background: #374151; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; transition: 0.2s; }
-        .audio-visual.recording .mic-icon { animation: pulse-red 1.5s infinite; background: #ef4444; }
-        
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-
-        audio { width: 90%; margin-top: 10px; display: none; }
-
-        /* Кнопки */
-        .controls-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        
-        .btn { 
-            padding: 14px 20px; 
-            border-radius: 12px; 
-            border: none; 
-            font-size: 15px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: transform 0.1s; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 8px;
-            width: 100%; /* На мобільному на всю ширину */
+        .recording .mic-circle {
+            background: var(--danger);
+            animation: pulse 1.5s infinite;
         }
-        .btn:active { transform: scale(0.98); }
-        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-        .btn-rec { background: #ef4444; color: white; }
-        .btn-stop { background: #374151; color: white; display: none; }
-        .btn-pause { background: #f59e0b; color: white; display: none; flex: 1; }
-        .btn-resume { background: #10b981; color: white; display: none; flex: 1; }
-        
-        .action-buttons { display: none; flex-direction: column; gap: 10px; width: 100%; }
-        .btn-send { background: #10b981; color: white; }
-        .btn-retake { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
-        
-        .timer { font-size: 28px; font-weight: 700; margin-bottom: 20px; color: #111827; font-feature-settings: "tnum"; font-variant-numeric: tabular-nums; }
-        .timer.paused { color: #f59e0b; animation: blink 1s infinite; }
-        
-        .success-box { display: none; margin-top: 20px; padding: 20px; background: #dcfce7; border: 1px solid #86efac; border-radius: 12px; color: #166534; }
-        .video-link { font-family: monospace; background: rgba(255,255,255,0.5); padding: 8px; border-radius: 6px; font-size: 13px; word-break: break-all; margin: 10px 0; }
-        .copy-btn { background: #16a34a; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 5px; }
-
-        @keyframes blink { 50% { opacity: 0.5; } }
-
-        /* Адаптивність для планшетів та десктопів */
-        @media (min-width: 600px) {
-            .btn { width: auto; min-width: 140px; }
-            .action-buttons { flex-direction: row; }
-            .btn-rec { width: 100%; }
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 12px;
         }
+        .tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 8px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-sec);
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .tab.active { background: white; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        /* Controls */
+        .controls { display: flex; justify-content: center; gap: 16px; align-items: center; min-height: 80px; }
+        
+        .btn-circle {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            border: 4px solid rgba(239, 68, 68, 0.3);
+            background: var(--danger);
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4);
+        }
+        .btn-circle:active { transform: scale(0.95); }
+        .btn-circle.stop { border-radius: 20px; width: 60px; height: 60px; background: #374151; border-color: rgba(55, 65, 81, 0.3); }
+
+        .btn-icon {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            background: #f1f5f9;
+            border: none;
+            color: var(--text-main);
+            font-size: 20px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.2s;
+        }
+        .btn-icon:hover { background: #e2e8f0; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border-radius: 14px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.3);
+        }
+        .btn-primary:active { transform: scale(0.98); background: var(--primary-dark); }
+        .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+        
+        .btn-secondary {
+            width: 100%; padding: 16px; border-radius: 14px;
+            background: white; border: 1px solid #e5e7eb; color: var(--text-main);
+            font-weight: 600; cursor: pointer; transition: 0.2s;
+        }
+        .btn-secondary:active { background: #f9fafb; }
+
+        /* Timer */
+        .timer-badge {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); color: white;
+            padding: 6px 16px; border-radius: 20px;
+            font-size: 15px; font-weight: 600; letter-spacing: 0.5px;
+            backdrop-filter: blur(4px);
+        }
+        .timer-badge.paused { color: #facc15; }
+
+        /* Success State */
+        .success-card {
+            display: none;
+            text-align: center;
+            animation: fadeIn 0.5s;
+            padding: 20px 0;
+        }
+        .success-icon { font-size: 48px; margin-bottom: 16px; display: block; }
+        
+        .copy-trigger {
+            background: #f8fafc; border: 1px solid #e2e8f0;
+            border-radius: 16px; padding: 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; margin: 24px 0;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .copy-trigger:active { transform: scale(0.98); }
+        .copy-trigger.copied { background: #ecfdf5; border-color: #86efac; }
+        
+        .link-text { font-weight: 600; font-size: 15px; color: var(--text-main); }
+        .copy-label { color: var(--primary); font-weight: 700; font-size: 13px; letter-spacing: 0.5px; }
+
+        .hidden { display: none !important; }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Record Response</h2>
-    <p>Please record your answer for the recruiter.</p>
-    
-    <div class="mode-switch">
-        <button id="modeVideo" class="mode-btn active" onclick="switchMode('video')">🎥 Video</button>
-        <button id="modeAudio" class="mode-btn" onclick="switchMode('audio')">🎤 Audio Only</button>
+    <header id="header">
+        <h2>📹 Video Response</h2>
+        <div class="subtitle">Record your answer for the recruiter</div>
+    </header>
+
+    <div class="tabs" id="modeSwitch">
+        <button class="tab active" onclick="switchMode('video')">Video</button>
+        <button class="tab" onclick="switchMode('audio')">Audio Only</button>
     </div>
-    
-    <div class="media-wrapper">
+
+    <div class="media-wrapper" id="stage">
+        <div class="timer-badge" id="timer">00:00</div>
+        
         <video id="preview" autoplay muted playsinline></video>
         
         <div id="audioVisualizer" class="audio-visual">
-            <div class="mic-icon">🎤</div>
-            <div style="color:white; font-size:14px; opacity: 0.8;">Microphone Active</div>
+            <div class="mic-circle">🎤</div>
+            <div style="color:rgba(255,255,255,0.7); margin-top:10px; font-size:12px;">Microphone Active</div>
         </div>
 
-        <audio id="audioPreview" controls></audio>
+        <audio id="audioPreview" controls style="display:none; width:90%; position:absolute; bottom:20px; left:5%;"></audio>
     </div>
 
-    <div class="timer" id="timer">00:00</div>
-    
-    <div class="controls-row">
-        <button id="startBtn" class="btn btn-rec">🔴 Start Recording</button>
-        
-        <button id="pauseBtn" class="btn btn-pause">⏸ Pause</button>
-        <button id="resumeBtn" class="btn btn-resume">▶ Resume</button>
-        
-        <button id="stopBtn" class="btn btn-stop">⏹ Stop</button>
-    </div>
-    
-    <div id="postRecordControls" class="action-buttons">
-        <button id="retakeBtn" class="btn btn-retake">🔄 Retake</button>
-        <button id="sendBtn" class="btn btn-send">✅ Upload Response</button>
+    <div id="controls-start" class="controls">
+        <div class="btn-circle" onclick="startRecording()"></div>
     </div>
 
-    <div id="successView" class="success-box">
-        <div style="font-weight:bold; font-size:18px; margin-bottom:5px;">🎉 Uploaded!</div>
-        <div style="font-size:14px; opacity:0.8;">Copy this link and paste it into the form:</div>
-        
-        <div id="videoLink" class="video-link">...</div>
-        
-        <button class="copy-btn" onclick="copyLink()">📋 Copy Link</button>
+    <div id="controls-rec" class="controls hidden">
+        <button class="btn-icon" onclick="togglePause()">⏸</button>
+        <button class="btn-circle stop" onclick="stopRecording()"></button>
     </div>
+
+    <div id="controls-review" class="hidden" style="display:flex; flex-direction:column; gap:12px; width:100%;">
+        <button id="sendBtn" class="btn-primary" onclick="uploadRecording()">
+            ✅ Send Response
+        </button>
+        <button id="retakeBtn" class="btn-secondary" onclick="retake()">
+            🔄 Retake
+        </button>
+    </div>
+
+    <div id="successView" class="success-card">
+        <span class="success-icon">🎉</span>
+        <h3 style="margin:0 0 8px 0; color: var(--text-main);">Response Uploaded!</h3>
+        <p style="font-size:14px; color:var(--text-sec); margin:0; line-height: 1.5;">
+            Click below to copy the link,<br>then paste it into the form.
+        </p>
+
+        <div class="copy-trigger" onclick="copyLink()">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <span style="font-size:20px;">🔗</span>
+                <span class="link-text">Video Link Generated</span>
+            </div>
+            <span class="copy-label">COPY</span>
+        </div>
+        
+        <div id="realLink" style="display:none;"></div> </div>
 </div>
 
 <script>
     const params = new URLSearchParams(window.location.search);
     const targetEmail = params.get('to');
+    const formTitleParam = params.get('form');
     
+    // Відображаємо назву форми в заголовку, якщо є
+    if(formTitleParam && formTitleParam !== "General") {
+        document.querySelector('.subtitle').innerText = decodeURIComponent(formTitleParam);
+    }
+
     let currentMode = 'video';
     let stream, recorder, chunks = [], seconds = 0, interval;
+    let isPaused = false;
 
+    // UI Elements
     const preview = document.getElementById('preview');
     const audioVisualizer = document.getElementById('audioVisualizer');
-    const audioPreview = document.getElementById('audioPreview');
-    const startBtn = document.getElementById('startBtn');
-    const pauseBtn = document.getElementById('pauseBtn');
-    const resumeBtn = document.getElementById('resumeBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const postControls = document.getElementById('postRecordControls');
-    const sendBtn = document.getElementById('sendBtn');
-    const retakeBtn = document.getElementById('retakeBtn');
     const timerEl = document.getElementById('timer');
+    const btnSend = document.getElementById('sendBtn');
+    
+    // Controls
+    const cStart = document.getElementById('controls-start');
+    const cRec = document.getElementById('controls-rec');
+    const cReview = document.getElementById('controls-review');
+    const successView = document.getElementById('successView');
+    const modeSwitch = document.getElementById('modeSwitch');
+    const header = document.getElementById('header');
+    const stage = document.getElementById('stage');
 
     async function initMedia() {
         if (stream) stream.getTracks().forEach(track => track.stop());
 
-        // Для мобільних важливо вказувати exact constraints або ideal
         const constraints = currentMode === 'video' 
-            ? { video: { facingMode: "user" }, audio: true } // Фронтальна камера
+            ? { video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 1280 } }, audio: true }
             : { video: false, audio: true };
 
         try {
@@ -214,13 +307,12 @@
                 audioVisualizer.style.display = 'none';
                 preview.srcObject = stream;
                 preview.muted = true;
+                preview.controls = false;
             } else {
                 preview.style.display = 'none';
                 audioVisualizer.style.display = 'flex';
             }
-            
-            audioPreview.style.display = 'none';
-            preview.controls = false;
+            document.getElementById('audioPreview').style.display = 'none';
             
         } catch (e) {
             alert("Error: Camera/Microphone access needed.");
@@ -229,24 +321,19 @@
 
     window.switchMode = (mode) => {
         if (recorder && recorder.state !== 'inactive') {
-            if(!confirm("Stop current recording?")) return;
-            stopRecordingLogic();
+            if(!confirm("Stop recording?")) return;
+            stopRecording();
         }
         currentMode = mode;
-        document.getElementById('modeVideo').classList.toggle('active', mode === 'video');
-        document.getElementById('modeAudio').classList.toggle('active', mode === 'audio');
-        postControls.style.display = "none";
-        startBtn.style.display = "flex";
-        timerEl.innerText = "00:00";
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
         initMedia();
     };
 
-    initMedia();
-
-    function startTimerLogic() {
+    function startTimer() {
         clearInterval(interval);
         interval = setInterval(() => {
-            seconds++;
+            if(!isPaused) seconds++;
             const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
             const secs = (seconds % 60).toString().padStart(2, '0');
             timerEl.innerText = `${mins}:${secs}`;
@@ -254,22 +341,11 @@
         timerEl.classList.remove('paused');
     }
 
-    function pauseTimerLogic() {
-        clearInterval(interval);
-        timerEl.classList.add('paused');
-    }
-
-    startBtn.onclick = () => {
+    window.startRecording = () => {
         chunks = [];
-        // Вказуємо MIME-типи для кращої сумісності
         let options = { mimeType: 'video/webm;codecs=vp8,opus' };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-            options = { mimeType: 'video/mp4' }; // Fallback для Safari
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = undefined; // Браузер сам вирішить
-            }
-        }
-
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/mp4' };
+        
         try { recorder = new MediaRecorder(stream, options); } 
         catch(e) { alert("Recorder error: " + e.message); return; }
 
@@ -284,114 +360,112 @@
                 preview.src = url;
                 preview.muted = false;
                 preview.controls = true;
-                preview.style.display = 'block';
-                audioVisualizer.style.display = 'none';
             } else {
                 audioVisualizer.style.display = 'none';
-                audioPreview.src = url;
-                audioPreview.style.display = 'block';
+                const audioP = document.getElementById('audioPreview');
+                audioP.src = url;
+                audioP.style.display = 'block';
             }
             
-            stopBtn.style.display = "none";
-            pauseBtn.style.display = "none";
-            resumeBtn.style.display = "none";
-            postControls.style.display = "flex";
-            timerEl.classList.remove('paused');
+            cRec.classList.add('hidden');
+            cReview.classList.remove('hidden');
             timerEl.style.color = "#10b981";
-            if (currentMode === 'audio') audioVisualizer.classList.remove('recording');
+            if (currentMode === 'audio') document.querySelector('.audio-visual').classList.remove('recording');
         };
 
         recorder.start();
-        startBtn.style.display = "none";
-        stopBtn.style.display = "flex";
-        pauseBtn.style.display = "flex";
-        if (currentMode === 'audio') audioVisualizer.classList.add('recording');
+        cStart.classList.add('hidden');
+        cRec.classList.remove('hidden');
+        modeSwitch.style.display = 'none'; // Lock mode
+        
+        if (currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
+        
         seconds = 0;
         timerEl.innerText = "00:00";
-        startTimerLogic();
+        isPaused = false;
+        startTimer();
     };
 
-    pauseBtn.onclick = () => {
-        if (recorder.state === "recording") {
-            recorder.pause();
-            pauseTimerLogic();
-            pauseBtn.style.display = "none";
-            resumeBtn.style.display = "flex";
-            if (currentMode === 'audio') audioVisualizer.classList.remove('recording');
-        }
-    };
-
-    resumeBtn.onclick = () => {
-        if (recorder.state === "paused") {
+    window.togglePause = () => {
+        if (isPaused) {
             recorder.resume();
-            startTimerLogic();
-            resumeBtn.style.display = "none";
-            pauseBtn.style.display = "flex";
-            if (currentMode === 'audio') audioVisualizer.classList.add('recording');
+            document.querySelector('.btn-icon').innerText = "⏸";
+            timerEl.classList.remove('paused');
+        } else {
+            recorder.pause();
+            document.querySelector('.btn-icon').innerText = "▶";
+            timerEl.classList.add('paused');
         }
+        isPaused = !isPaused;
     };
 
-    stopBtn.onclick = () => { recorder.stop(); clearInterval(interval); };
-
-    function stopRecordingLogic() {
-        if (recorder && recorder.state !== 'inactive') recorder.stop();
+    window.stopRecording = () => {
+        recorder.stop();
         clearInterval(interval);
-    }
+    };
 
-    retakeBtn.onclick = () => {
+    window.retake = () => {
         if(preview.src) URL.revokeObjectURL(preview.src);
-        if(audioPreview.src) URL.revokeObjectURL(audioPreview.src);
-        postControls.style.display = "none";
-        startBtn.style.display = "flex";
-        timerEl.style.color = "#111827";
+        cReview.classList.add('hidden');
+        cStart.classList.remove('hidden');
+        modeSwitch.style.display = 'flex';
+        timerEl.style.color = "white";
         timerEl.innerText = "00:00";
         initMedia();
     };
 
-    sendBtn.onclick = async () => {
-        if (!targetEmail) return alert("Error: No recipient found.");
+    window.uploadRecording = async () => {
+        if (!targetEmail) return alert("Link Error: No recipient found.");
         
-        sendBtn.innerText = "⏳ Uploading...";
-        sendBtn.disabled = true;
-        retakeBtn.disabled = true;
+        btnSend.innerText = "⏳ Uploading...";
+        btnSend.disabled = true;
+        document.getElementById('retakeBtn').style.display = 'none';
 
         const blob = new Blob(chunks, { type: 'video/webm' });
         const formData = new FormData();
         const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
         
-        // 🔥 Читаємо назву форми з URL
-        const formName = params.get('form') || "General";
+        // Підтримка папок форм (V31)
+        const formName = formTitleParam || "General";
 
         formData.append('file', blob, `${prefix}${Date.now()}.webm`);
         formData.append('folder', targetEmail);
-        formData.append('subfolder', formName); // 🔥 Передаємо серверу
+        formData.append('subfolder', formName);
 
         try {
             const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
             if (!res.ok) throw new Error("Upload failed");
             const data = await res.json();
 
-            document.getElementById('successView').style.display = 'block';
-            document.getElementById('videoLink').innerText = data.publicUrl;
+            // Success UI Transition
+            cReview.classList.add('hidden');
+            stage.style.display = 'none';
+            header.style.display = 'none';
+            modeSwitch.style.display = 'none';
             
-            postControls.style.display = "none";
-            preview.style.display = "none"; 
-            audioPreview.style.display = "none";
-            audioVisualizer.style.display = "none";
+            successView.style.display = 'block';
+            document.getElementById('realLink').innerText = data.publicUrl;
             
         } catch (e) {
             alert("Error: " + e.message);
-            sendBtn.innerText = "❌ Try Again";
-            sendBtn.disabled = false;
-            retakeBtn.disabled = false;
+            btnSend.innerText = "❌ Try Again";
+            btnSend.disabled = false;
         }
     };
 
     window.copyLink = () => {
-        const link = document.getElementById('videoLink').innerText;
+        const link = document.getElementById('realLink').innerText;
         navigator.clipboard.writeText(link);
-        alert("Link copied!");
+        
+        const trigger = document.querySelector('.copy-trigger');
+        trigger.classList.add('copied');
+        trigger.querySelector('.link-text').innerText = "Link Copied!";
+        trigger.querySelector('.copy-label').innerText = "DONE";
+        trigger.querySelector('.copy-label').style.color = "#16a34a";
     };
+
+    // Init
+    initMedia();
 </script>
 
 </body>
