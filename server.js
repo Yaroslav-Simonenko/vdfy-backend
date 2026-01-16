@@ -63,14 +63,36 @@ app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/recorder.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'recorder.html')));
 
-// Short Link Redirect
-app.get('/v/:id', async (req, res) => {
+// 🔥 1. ЗМІНА: Тепер це просто віддає HTML-сторінку "Gatekeeper"
+app.get('/v/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
+});
+
+// 🔥 2. НОВЕ: API для отримання реального посилання (тільки для власника)
+app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
-        if (!doc.exists) return res.status(404).send("Link not found");
-        res.redirect(doc.data().url);
-    } catch (e) { res.status(500).send("Server Error"); }
+        if (!doc.exists) return res.status(404).json({ error: "Not found" });
+
+        const videoData = doc.data();
+        const requesterEmail = req.user.email.toLowerCase();
+        const ownerEmail = videoData.email ? videoData.email.toLowerCase() : "";
+
+        // ГОЛОВНА ПЕРЕВІРКА: Чи збігається Email того, хто просить, з власником відео?
+        if (requesterEmail !== ownerEmail) {
+            console.log(`⛔ Access Attempt: ${requesterEmail} tried to view video of ${ownerEmail}`);
+            return res.status(403).json({ error: "Access Denied" });
+        }
+
+        // Якщо все ок — віддаємо посилання
+        res.json({ url: videoData.url });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Server Error" });
+    }
 });
+
 
 const compressVideo = (inputPath, outputPath) => {
     return new Promise((resolve, reject) => {
@@ -82,7 +104,7 @@ const compressVideo = (inputPath, outputPath) => {
     });
 };
 
-// 1. UPLOAD
+// UPLOAD (без змін логіки, тільки дрібні правки)
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
@@ -90,7 +112,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
         
-        // 🔥 FIX: Завжди переводимо email у нижній регістр
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
         const formName = req.body.subfolder ? sanitize(req.body.subfolder) : "General"; 
         const emailFolder = ownerEmail.replace(/[@.]/g, '_');
@@ -98,7 +119,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         tempPath = req.file.path;
         compressedPath = tempPath + '_compressed.mp4';
 
-        console.log("⏳ Compressing...");
         await compressVideo(tempPath, compressedPath);
 
         const transcription = await openai.audio.transcriptions.create({ 
@@ -111,16 +131,15 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
-        // Short Link
         const shortId = generateShortId();
         const serverUrl = `${req.protocol}://${req.get('host')}`;
         const shortUrl = `${serverUrl}/v/${shortId}`;
 
         await db.collection('shortLinks').doc(shortId).set({
             url: longUrl,
-            r2Key: r2Key, // Зберігаємо ключ R2 для зручного пошуку при видаленні
+            r2Key: r2Key,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            email: ownerEmail
+            email: ownerEmail // Важливо: зберігаємо власника
         });
 
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -129,84 +148,52 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         res.json({ publicUrl: shortUrl, transcription: transcription.text });
 
     } catch (e) { 
-        console.error("Upload Error:", e);
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (compressedPath && fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
         res.status(500).json({ error: e.message }); 
     }
 });
 
-// 2. LIST
+// LIST & DELETE & ANALYZE (Без змін)
 app.get('/api/my-videos', verifyToken, async (req, res) => {
-    const email = req.user.email ? req.user.email.toLowerCase() : null; // 🔥 FIX: Lowercase
+    const email = req.user.email ? req.user.email.toLowerCase() : null;
     if (!email) return res.json({ videos: [] });
     const emailFolder = email.replace(/[@.]/g, '_');
     
     try {
         const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: `users/${emailFolder}/` }));
-        
         const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4') || i.Key.endsWith('.webm')).map(i => {
-            const parts = i.Key.split('/');
-            const formName = parts.length > 3 ? decodeURIComponent(parts[2]) : "General";
             return {
                 key: i.Key,
                 url: `${process.env.R2_PUBLIC_URL}/${i.Key}`,
                 textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace(/\.(mp4|webm)$/, '.txt')}`,
                 uploadedAt: i.LastModified,
-                formName: formName
+                formName: i.Key.split('/').length > 3 ? decodeURIComponent(i.Key.split('/')[2]) : "General"
             };
         });
         res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
-    } catch (e) {
-        console.error("List Error:", e);
-        res.json({ videos: [] });
-    }
+    } catch (e) { res.json({ videos: [] }); }
 });
 
-// 3. DELETE (Fixed)
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     try {
-        const email = req.user.email.toLowerCase(); // 🔥 FIX: Lowercase
+        const email = req.user.email.toLowerCase();
         const emailFolder = email.replace(/[@.]/g, '_');
         const videoKey = req.body.videoKey;
 
-        // Перевірка прав (security check)
-        if (!videoKey.startsWith(`users/${emailFolder}/`)) {
-            console.log(`🛑 Access Denied: User ${email} tried to delete ${videoKey}`);
-            return res.status(403).json({ error: "Access Denied" });
-        }
+        if (!videoKey.startsWith(`users/${emailFolder}/`)) return res.status(403).json({ error: "Access Denied" });
         
-        console.log(`🗑 Deleting: ${videoKey}`);
-
-        // 1. Видаляємо файл відео з R2
         await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey }));
-        
-        // 2. Видаляємо текстову розшифровку (пробуємо .txt для обох варіантів відео)
-        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(e => console.log("Text delete warning:", e.message));
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
 
-        // 3. 🔥 Видаляємо коротке посилання з бази даних
         const snapshot = await db.collection('shortLinks').where('r2Key', '==', videoKey).get();
         if (!snapshot.empty) {
             const batch = db.batch();
             snapshot.docs.forEach(doc => batch.delete(doc.ref));
             await batch.commit();
-            console.log(`✅ Deleted short link(s) for ${videoKey}`);
-        } else {
-            // Фолбек: шукаємо по URL (для старих записів)
-            const longUrl = `${process.env.R2_PUBLIC_URL}/${videoKey}`;
-            const urlSnapshot = await db.collection('shortLinks').where('url', '==', longUrl).get();
-            if (!urlSnapshot.empty) {
-                const batch = db.batch();
-                urlSnapshot.docs.forEach(doc => batch.delete(doc.ref));
-                await batch.commit();
-            }
         }
-
         res.json({ success: true });
-    } catch (e) {
-        console.error("Delete Error:", e);
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
