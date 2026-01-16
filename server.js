@@ -8,24 +8,22 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } 
 const fs = require('fs');
 const path = require('path');
 
-// 🔥 ОСЬ ЦЕ ГОЛОВНЕ ВИПРАВЛЕННЯ:
+// FFmpeg setup
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('ffmpeg-static'); // Імпортуємо саму програму
-ffmpeg.setFfmpegPath(ffmpegPath);            // Кажемо бібліотеці використовувати саме її
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
-
-// 1. 🔥 Збільшуємо ліміти для великих файлів
+// Ліміти для великих файлів
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(express.static('public'));
 
-// Налаштування тайм-ауту сервера (10 хвилин), щоб не розривав з'єднання при довгому завантаженні
-const server = app.listen(3000, '0.0.0.0', () => console.log("🚀 Server running"));
+const server = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 server.setTimeout(600000); 
 
-// Firebase
+// Firebase Init
 let serviceAccount;
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -36,6 +34,7 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
 if (serviceAccount) {
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 }
+const db = admin.firestore(); // 🔥 Підключаємо базу даних
 
 // R2 Storage
 const s3 = new S3Client({
@@ -49,6 +48,9 @@ const upload = multer({ dest: 'uploads/' });
 
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 
+// Генератор коротких ID (6 символів)
+const generateShortId = () => Math.random().toString(36).substring(2, 8);
+
 // Middleware Auth
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
@@ -57,43 +59,41 @@ const verifyToken = async (req, res, next) => {
         const decoded = await admin.auth().verifyIdToken(token);
         req.user = decoded;
         next();
-    } catch (e) {
-        try {
-            const r = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, { headers: { Authorization: `Bearer ${token}` } });
-            req.user = await r.json();
-            next();
-        } catch { return res.status(403).json({ error: 'Forbidden' }); }
-    }
+    } catch (e) { return res.status(403).json({ error: 'Forbidden' }); }
 };
 
-app.get('/', (req, res) => res.send('✅ VDFY Server Ready (FFmpeg Enabled)'));
+app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 app.get('/recorder.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'recorder.html')));
 
-// 🔥 ФУНКЦІЯ СТИСНЕННЯ ВІДЕО
+// 🔥 НОВЕ: Роут для коротких посилань (Redirect)
+app.get('/v/:id', async (req, res) => {
+    try {
+        const doc = await db.collection('shortLinks').doc(req.params.id).get();
+        if (!doc.exists) return res.status(404).send("Link not found");
+        
+        // Перенаправляємо на справжнє довге відео
+        res.redirect(doc.data().url);
+    } catch (e) {
+        res.status(500).send("Server Error");
+    }
+});
+
+// Стиснення відео
 const compressVideo = (inputPath, outputPath) => {
     return new Promise((resolve, reject) => {
         ffmpeg(inputPath)
-            .outputOptions([
-                '-vcodec libx264', // Кодек
-                '-crf 28',         // Рівень стиснення (чим більше, тим менша якість. 28 - оптимально для вебу)
-                '-preset veryfast',// Швидкість кодування
-                '-acodec aac',     // Аудіо кодек
-                '-b:a 128k'        // Бітрейт аудіо
-            ])
+            .outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac', '-b:a 128k'])
             .save(outputPath)
             .on('end', () => resolve(outputPath))
             .on('error', (err) => reject(err));
     });
 };
 
-// 1. UPLOAD (З компресією)
+// 1. UPLOAD (Зі скороченням посилань)
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
-    // Збільшуємо тайм-аут для цього конкретного запиту
     req.setTimeout(600000); 
-    
-    let tempPath = null;
-    let compressedPath = null;
+    let tempPath = null, compressedPath = null;
 
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
@@ -102,62 +102,51 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         const formName = req.body.subfolder ? sanitize(req.body.subfolder) : "General"; 
         const emailFolder = (ownerEmail && ownerEmail.includes('@')) ? ownerEmail.replace(/[@.]/g, '_') : "public";
         
-        // Оригінальний файл
         tempPath = req.file.path;
-        
-        // Шлях для стиснутого файлу
-        compressedPath = tempPath + '_compressed.mp4'; // Конвертуємо все в mp4 для сумісності
+        compressedPath = tempPath + '_compressed.mp4';
 
-        console.log("⏳ Compressing video...");
-        
-        // 🔥 ЗАПУСК СТИСНЕННЯ (Якщо це відео)
-        // Якщо файл маленький (< 5MB), можна не стискати, але для уніфікації стиснемо все
+        console.log("⏳ Compressing...");
         await compressVideo(tempPath, compressedPath);
-        
-        console.log("✅ Compression done. Transcribing...");
 
-        // Транскрибація (використовуємо стиснутий файл - це швидше)
+        // Транскрибація
         const transcription = await openai.audio.transcriptions.create({ 
-            file: fs.createReadStream(compressedPath), 
-            model: "whisper-1" 
+            file: fs.createReadStream(compressedPath), model: "whisper-1" 
         });
 
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
+        const longUrl = `${process.env.R2_PUBLIC_URL}/${r2Key}`; // Довге посилання
 
         // Завантаження в R2
-        await s3.send(new PutObjectCommand({ 
-            Bucket: process.env.R2_BUCKET_NAME, 
-            Key: r2Key, 
-            Body: fs.createReadStream(compressedPath), 
-            ContentType: "video/mp4" 
-        }));
+        await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
+        await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
-        // Завантаження тексту
-        await s3.send(new PutObjectCommand({ 
-            Bucket: process.env.R2_BUCKET_NAME, 
-            Key: r2Key.replace('.mp4', '.txt'), 
-            Body: transcription.text, 
-            ContentType: "text/plain; charset=utf-8" 
-        }));
+        // 🔥 ГЕНЕРАЦІЯ КОРОТКОГО ПОСИЛАННЯ
+        const shortId = generateShortId();
+        const serverUrl = `${req.protocol}://${req.get('host')}`; // https://vdfy...app
+        const shortUrl = `${serverUrl}/v/${shortId}`;
 
-        // Видалення тимчасових файлів
+        // Зберігаємо пару в Firestore
+        await db.collection('shortLinks').doc(shortId).set({
+            url: longUrl,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            email: ownerEmail
+        });
+
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
 
-        res.json({ publicUrl: `${process.env.R2_PUBLIC_URL}/${r2Key}`, transcription: transcription.text });
+        // Повертаємо Клієнту ТІЛЬКИ коротке посилання
+        res.json({ publicUrl: shortUrl, transcription: transcription.text });
 
     } catch (e) { 
         console.error("Upload Error:", e);
-        // Чистка при помилці
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (compressedPath && fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
-        res.status(500).json({ error: e.message || "Upload failed" }); 
+        res.status(500).json({ error: e.message }); 
     }
 });
 
-// ... (Решта коду LIST, DELETE, ANALYZE - без змін, окрім розширень файлів) ...
-
-// 2. LIST (Оновлений під .mp4)
+// 2. LIST
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     const email = req.user.email;
     if (!email) return res.json({ videos: [] });
@@ -170,7 +159,7 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
         const formName = parts.length > 3 ? decodeURIComponent(parts[2]) : "General";
         return {
             key: i.Key,
-            url: `${process.env.R2_PUBLIC_URL}/${i.Key}`,
+            url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, // В адмінці можна залишити пряме, або теж скоротити (за бажанням)
             textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace(/\.(mp4|webm)$/, '.txt')}`,
             uploadedAt: i.LastModified,
             formName: formName
@@ -179,16 +168,17 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
 });
 
+// 3. DELETE
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     const emailFolder = req.user.email.replace(/[@.]/g, '_');
     if (!req.body.videoKey.startsWith(`users/${emailFolder}/`)) return res.status(403).json({ error: "Access Denied" });
     
     await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: req.body.videoKey }));
-    // Видаляємо текст незалежно від розширення відео
     await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: req.body.videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
     res.json({ success: true });
 });
 
+// 4. ANALYZE
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
@@ -199,4 +189,4 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
         });
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
-});  
+});
