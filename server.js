@@ -39,10 +39,11 @@ const s3 = new S3Client({
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ dest: 'uploads/' });
 
+// --- HELPERS ---
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 const generateShortId = () => Math.random().toString(36).substring(2, 7);
-const generatePassword = (length = 8) => Math.random().toString(36).slice(-length);
 
+// --- MIDDLEWARE ---
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -160,7 +161,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
                 .save(compressedPath).on('end', resolve).on('error', reject);
         });
 
-        // 🔥 ОСЬ ТУТ ЗМІНА ПРОМПТА
+        // 🔥 Whisper Prompt Fix
         const transcription = await openai.audio.transcriptions.create({ 
             file: fs.createReadStream(compressedPath), 
             model: "whisper-1",
@@ -198,34 +199,62 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// 🔥 8. ADMIN: CREATE CLIENT
+// ==================== ADMIN ZONE ====================
+
+// Функція генерації паролів (Покращена)
+const generatePassword = (length = 10) => {
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+    let retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+        retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    return retVal;
+};
+
+// API: Створення клієнта (Тільки для Адміна)
 app.post('/api/create-client', verifyToken, async (req, res) => {
     try {
-        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- CHANGE THIS TO YOUR EMAIL!
+        // 👇 Твоя пошта адміна
+        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
         
         if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-            return res.status(403).json({ error: "Ви не адмін!" });
+            return res.status(403).json({ error: "Access Denied: You are not the Super Admin." });
         }
 
         const { email } = req.body;
-        if (!email) return res.status(400).json({ error: "Email required" });
+        if (!email) return res.status(400).json({ error: "Email is required" });
 
-        const password = generatePassword(10);
+        // 1. Генеруємо пароль
+        const password = generatePassword(12);
 
-        await admin.auth().createUser({ email: email, password: password, emailVerified: true });
-        
-        const host = `https://${req.headers.host}`;
-        res.json({
-            success: true,
+        // 2. Створюємо юзера в Firebase
+        const userRecord = await admin.auth().createUser({
             email: email,
             password: password,
-            link: `${host}/install`
+            emailVerified: true // Одразу підтверджуємо, щоб не мучились
         });
 
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        // 3. Формуємо красиву відповідь
+        const host = `https://${req.headers.host}`; // vdfy.org
+        
+        res.json({
+            success: true,
+            credentials: {
+                email: email,
+                password: password,
+                loginLink: `${host}/dashboard`,
+                installLink: `${host}/install` // Якщо ти зробив сторінку інсталяції, або прямий лінк на ZIP
+            }
+        });
+
+    } catch (e) {
+        console.error("Create User Error:", e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
-// OTHER CLIENT APIS
+// ==================== CLIENT APIs ====================
+
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     const email = req.user.email ? req.user.email.toLowerCase() : null;
     if (!email) return res.json({ videos: [] });
