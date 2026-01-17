@@ -37,12 +37,11 @@
             padding: 24px;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            display: none; /* Сховано поки не завантажиться конфіг */
+            display: none; 
             flex-direction: column;
             gap: 16px;
         }
 
-        /* Лоадер */
         #pageLoader {
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
         }
@@ -67,7 +66,7 @@
 
         video { 
             width: 100%; height: 100%; object-fit: cover; display: block; 
-            transform: scaleX(-1); /* Дзеркальне відображення для селфі */
+            transform: scaleX(1); /* 🔥 ВИПРАВЛЕНО: Прибрали scaleX(-1) */
         }
 
         .timer-badge {
@@ -169,17 +168,13 @@
 </div>
 
 <script>
-    // 🔥 ГЛОБАЛЬНІ ЗМІННІ ДЛЯ КОНФІГУ
     let targetEmail = "";
     let formTitleParam = "General";
 
-    // --- 1. ІНІЦІАЛІЗАЦІЯ (Нова логіка) ---
     async function init() {
-        // Перевіряємо ID у шляху /r/XXXXX
         const pathParts = window.location.pathname.split('/');
         const id = pathParts[pathParts.length - 1]; 
         
-        // Підтримка старих лінків ?to=...
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('to')) {
             targetEmail = urlParams.get('to');
@@ -188,7 +183,6 @@
             return;
         }
 
-        // Fetch config якщо є ID
         if (id && id !== 'recorder.html') {
             try {
                 const res = await fetch(`/api/link-info/${id}`);
@@ -210,15 +204,13 @@
         document.getElementById('pageLoader').style.display = 'none';
         document.getElementById('mainContainer').style.display = 'flex';
         
-        // Оновлюємо заголовок
         if(formTitleParam && formTitleParam !== "General") {
             document.getElementById('formTitle').innerText = decodeURIComponent(formTitleParam);
         }
         
-        initMedia(); // Запускаємо камеру
+        initMedia();
     }
 
-    // --- 2. ЛОГІКА ЗАПИСУ (Стара добра) ---
     let currentMode = 'video';
     let stream, recorder, chunks = [], seconds = 0, interval, isPaused = false;
 
@@ -249,6 +241,8 @@
                 preview.srcObject = stream;
                 preview.muted = true;
                 preview.controls = false;
+                // 🔥 ВИПРАВЛЕНО: Більше не дзеркалимо при старті
+                preview.style.transform = "scaleX(1)";
             } else {
                 preview.style.display = 'none';
                 audioVisualizer.style.display = 'flex';
@@ -291,7 +285,7 @@
                 preview.src = url;
                 preview.muted = false;
                 preview.controls = true;
-                // Прибираємо дзеркальність при перегляді запису
+                // Запис завжди нормальний
                 preview.style.transform = "scaleX(1)";
             } else {
                 audioVisualizer.style.display = 'none';
@@ -310,8 +304,8 @@
         cRec.classList.remove('hidden');
         modeSwitch.style.display = 'none';
         
-        // Повертаємо дзеркальність для прев'ю камери
-        if (currentMode === 'video') preview.style.transform = "scaleX(-1)";
+        // 🔥 ВИПРАВЛЕНО: Не дзеркалимо під час запису
+        if (currentMode === 'video') preview.style.transform = "scaleX(1)";
         if(currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
         
         seconds = 0; timerEl.innerText = "00:00"; isPaused = false;
@@ -333,8 +327,8 @@
         modeSwitch.style.display = 'flex';
         timerEl.style.color = "white";
         timerEl.innerText = "00:00";
-        // Повертаємо дзеркальність для режиму камери
-        preview.style.transform = "scaleX(-1)";
+        // 🔥 ВИПРАВЛЕНО: При ретейку теж не дзеркалимо
+        preview.style.transform = "scaleX(1)";
         initMedia();
     };
 
@@ -348,7 +342,6 @@
         const formData = new FormData();
         const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
         
-        // Використовуємо змінні, які ми дістали в init()
         const formName = formTitleParam || "General";
 
         formData.append('file', blob, `${prefix}${Date.now()}.webm`);
@@ -380,7 +373,6 @@
         trigger.querySelector('.copy-label').innerText = "DONE";
     };
 
-    // Запускаємо при завантаженні
     init();
 </script>
 
