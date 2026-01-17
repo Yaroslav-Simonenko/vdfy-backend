@@ -1,146 +1,388 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <base href="/"> 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Response</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366F1">
+    <title>VDFY Recorder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f3f4f6; }
-        .card { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 480px; text-align: center; }
-        h2 { margin: 0 0 8px 0; font-size: 18px; color: #111827; }
-        .subtitle { color: #6b7280; font-size: 14px; margin-bottom: 20px; }
-        video { width: 100%; border-radius: 12px; background: black; aspect-ratio: 16/9; transform: scaleX(-1); margin-bottom: 15px; }
-        .controls { display: flex; gap: 10px; justify-content: center; }
-        button { padding: 12px 24px; border-radius: 50px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px; font-size: 14px; }
-        .btn-rec { background: #ef4444; color: white; }
-        .btn-rec:hover { background: #dc2626; }
-        .btn-stop { background: #374151; color: white; display: none; }
-        .btn-upload { background: #10b981; color: white; display: none; width: 100%; justify-content: center; margin-top: 10px; }
-        .recording-dot { width: 10px; height: 10px; background: white; border-radius: 50%; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        #status { margin-top: 15px; font-size: 13px; color: #6b7280; min-height: 20px; }
-        #finalLink { width: 100%; padding: 10px; margin-top: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; display: none; background: #f9fafb; color: #374151; }
+        :root {
+            --primary: #6366F1;
+            --danger: #ef4444;
+            --bg: #F3F4F6;
+            --surface: #ffffff;
+            --text-main: #111827;
+            --text-sec: #6b7280;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--surface);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: none; /* Сховано поки не завантажиться конфіг */
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Лоадер */
+        #pageLoader {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        header { text-align: center; margin-bottom: 10px; }
+        h2 { margin: 0; font-size: 20px; color: var(--text-main); }
+        .subtitle { font-size: 14px; color: var(--text-sec); margin-top: 4px; }
+
+        .media-wrapper {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        video { 
+            width: 100%; height: 100%; object-fit: cover; display: block; 
+            transform: scaleX(-1); /* Дзеркальне відображення для селфі */
+        }
+
+        .timer-badge {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 6px 16px;
+            border-radius: 20px; font-size: 16px; font-weight: 600; z-index: 10; pointer-events: none;
+        }
+        .timer-badge.paused { color: #facc15; }
+
+        .tabs { display: flex; background: #f1f5f9; padding: 4px; border-radius: 10px; margin-bottom: 10px; }
+        .tab { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; font-weight: 600; color: var(--text-sec); cursor: pointer; }
+        .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        .audio-visual { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; background: #1e1b4b; }
+        .mic-circle { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; }
+        .recording .mic-circle { background: var(--danger); animation: pulse 1.5s infinite; }
+
+        .controls { display: flex; justify-content: center; gap: 20px; align-items: center; margin-top: 10px; }
+        
+        .btn-rec {
+            width: 64px; height: 64px; border-radius: 50%; background: var(--danger);
+            border: 4px solid rgba(239, 68, 68, 0.3); cursor: pointer;
+            box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4); transition: 0.2s;
+        }
+        .btn-rec:active { transform: scale(0.95); }
+
+        .btn-icon { width: 44px; height: 44px; border-radius: 50%; border: none; background: #f3f4f6; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+        .btn-primary { width: 100%; padding: 14px; border-radius: 10px; background: var(--primary); color: white; border: none; font-weight: 600; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        .btn-secondary { width: 100%; padding: 12px; border-radius: 10px; background: transparent; border: 1px solid #e5e7eb; color: var(--text-main); font-weight: 600; cursor: pointer; margin-top: 5px; }
+
+        .success-card { display: none; text-align: center; padding: 20px; }
+        .copy-trigger { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin: 20px 0; }
+        .copy-trigger.copied { background: #ecfdf5; border-color: #86efac; }
+        
+        .hidden { display: none !important; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <div id="loader">🔄 Loading config...</div>
-    
-    <div id="mainApp" style="display:none;">
+<div id="pageLoader">
+    <div class="spinner"></div>
+    <p style="color:#6b7280; font-size:14px;">Loading config...</p>
+</div>
+
+<div class="container" id="mainContainer">
+    <header id="header">
         <h2>📹 Video Response</h2>
-        <p class="subtitle" id="formNameDisplay">General</p>
+        <div class="subtitle" id="formTitle">Record your answer</div>
+    </header>
+
+    <div class="tabs" id="modeSwitch">
+        <button class="tab active" onclick="switchMode('video')">Video</button>
+        <button class="tab" onclick="switchMode('audio')">Audio Only</button>
+    </div>
+
+    <div class="media-wrapper" id="stage">
+        <div class="timer-badge" id="timer">00:00</div>
+        
         <video id="preview" autoplay muted playsinline></video>
-        <div class="controls">
-            <button id="startBtn" class="btn-rec">● Record</button>
-            <button id="stopBtn" class="btn-stop">■ Stop</button>
+        
+        <div id="audioVisualizer" class="audio-visual">
+            <div class="mic-circle">🎤</div>
+            <div style="color:white; margin-top:10px; font-size:12px;">Microphone Active</div>
         </div>
-        <button id="uploadBtn" class="btn-upload">🚀 Upload & Get Link</button>
-        <p id="status"></p>
-        <input type="text" id="finalLink" readonly onclick="this.select()">
+
+        <audio id="audioPreview" controls style="display:none; width:90%; position:absolute; bottom:10px; left:5%; z-index:20;"></audio>
+    </div>
+
+    <div id="controls-start" class="controls">
+        <button class="btn-rec" onclick="startRecording()"></button>
+    </div>
+
+    <div id="controls-rec" class="controls hidden">
+        <button class="btn-icon" onclick="togglePause()">⏸</button>
+        <button class="btn-rec" style="background:#374151; border-color:#4b5563; border-radius:12px;" onclick="stopRecording()">⏹</button>
+    </div>
+
+    <div id="controls-review" class="hidden" style="width:100%;">
+        <button id="sendBtn" class="btn-primary" onclick="uploadRecording()">✅ Send Response</button>
+        <button id="retakeBtn" class="btn-secondary" onclick="retake()">🔄 Retake</button>
+    </div>
+
+    <div id="successView" class="success-card">
+        <div style="font-size:40px; margin-bottom:10px;">🎉</div>
+        <h3>Uploaded!</h3>
+        <p style="color:#6b7280; font-size:14px;">Copy the link and paste it into the form.</p>
+
+        <div class="copy-trigger" onclick="copyLink()">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:20px;">🔗</span>
+                <span style="font-weight:600; font-size:14px;">Video Link</span>
+            </div>
+            <span class="copy-label" style="color:var(--primary); font-weight:700;">COPY</span>
+        </div>
+        <div id="realLink" style="display:none;"></div>
     </div>
 </div>
 
 <script>
-    let mediaRecorder, recordedChunks = [], stream;
-    let recipientEmail = "", targetFormName = "General";
+    // 🔥 ГЛОБАЛЬНІ ЗМІННІ ДЛЯ КОНФІГУ
+    let targetEmail = "";
+    let formTitleParam = "General";
 
+    // --- 1. ІНІЦІАЛІЗАЦІЯ (Нова логіка) ---
     async function init() {
-        // Try to get ID from path /r/XXXXX
+        // Перевіряємо ID у шляху /r/XXXXX
         const pathParts = window.location.pathname.split('/');
         const id = pathParts[pathParts.length - 1]; 
         
-        // Fallback: check query params for legacy links
+        // Підтримка старих лінків ?to=...
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('to')) {
-            recipientEmail = urlParams.get('to');
-            targetFormName = urlParams.get('form') || "General";
-            startApp();
+            targetEmail = urlParams.get('to');
+            formTitleParam = urlParams.get('form') || "General";
+            showApp();
             return;
         }
 
-        // Fetch config if ID exists
+        // Fetch config якщо є ID
         if (id && id !== 'recorder.html') {
             try {
                 const res = await fetch(`/api/link-info/${id}`);
                 if (!res.ok) throw new Error("Link invalid");
                 const data = await res.json();
-                recipientEmail = data.email;
-                targetFormName = data.formName || "General";
-                startApp();
+                targetEmail = data.email;
+                formTitleParam = data.formName || "General";
+                showApp();
             } catch (e) {
-                document.getElementById('loader').innerText = "❌ Error: Invalid or expired link.";
+                document.getElementById('pageLoader').innerHTML = `<p style="color:red">❌ Link expired or invalid.</p>`;
             }
         } else {
-            // Default/Direct access fallback
-            document.getElementById('loader').innerText = "⚠️ Direct access mode (No recipient set).";
-            startApp();
+            document.getElementById('pageLoader').innerHTML = `<p style="color:#6b7280">⚠️ Direct access mode.</p>`;
+            showApp();
         }
     }
 
-    function startApp() {
-        document.getElementById('loader').style.display = 'none';
-        document.getElementById('mainApp').style.display = 'block';
-        document.getElementById('formNameDisplay').innerText = decodeURIComponent(targetFormName);
-        startCamera();
+    function showApp() {
+        document.getElementById('pageLoader').style.display = 'none';
+        document.getElementById('mainContainer').style.display = 'flex';
+        
+        // Оновлюємо заголовок
+        if(formTitleParam && formTitleParam !== "General") {
+            document.getElementById('formTitle').innerText = decodeURIComponent(formTitleParam);
+        }
+        
+        initMedia(); // Запускаємо камеру
     }
 
-    async function startCamera() {
+    // --- 2. ЛОГІКА ЗАПИСУ (Стара добра) ---
+    let currentMode = 'video';
+    let stream, recorder, chunks = [], seconds = 0, interval, isPaused = false;
+
+    const preview = document.getElementById('preview');
+    const audioVisualizer = document.getElementById('audioVisualizer');
+    const timerEl = document.getElementById('timer');
+    const btnSend = document.getElementById('sendBtn');
+    
+    const cStart = document.getElementById('controls-start');
+    const cRec = document.getElementById('controls-rec');
+    const cReview = document.getElementById('controls-review');
+    const successView = document.getElementById('successView');
+    const modeSwitch = document.getElementById('modeSwitch');
+    const header = document.getElementById('header');
+    const stage = document.getElementById('stage');
+
+    async function initMedia() {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        const constraints = currentMode === 'video' 
+            ? { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true }
+            : { video: false, audio: true };
+
         try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('preview').srcObject = stream;
-        } catch (e) {
-            document.getElementById('status').innerText = "Camera error: " + e.message;
-        }
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (currentMode === 'video') {
+                preview.style.display = 'block';
+                audioVisualizer.style.display = 'none';
+                preview.srcObject = stream;
+                preview.muted = true;
+                preview.controls = false;
+            } else {
+                preview.style.display = 'none';
+                audioVisualizer.style.display = 'flex';
+            }
+            document.getElementById('audioPreview').style.display = 'none';
+        } catch (e) { alert("Camera access denied: " + e.message); }
     }
 
-    document.getElementById('startBtn').onclick = () => {
-        recordedChunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
-        mediaRecorder.start();
-        document.getElementById('startBtn').style.display = 'none';
-        document.getElementById('stopBtn').style.display = 'flex';
-        document.getElementById('status').innerText = "Recording...";
+    window.switchMode = (mode) => {
+        currentMode = mode;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        initMedia();
     };
 
-    document.getElementById('stopBtn').onclick = () => {
-        mediaRecorder.stop();
-        document.getElementById('stopBtn').style.display = 'none';
-        document.getElementById('uploadBtn').style.display = 'flex';
-        document.getElementById('status').innerText = "Recording stopped. Ready to upload.";
+    function startTimer() {
+        clearInterval(interval);
+        interval = setInterval(() => {
+            if(!isPaused) seconds++;
+            const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            timerEl.innerText = `${mins}:${secs}`;
+        }, 1000);
+        timerEl.classList.remove('paused');
+    }
+
+    window.startRecording = () => {
+        chunks = [];
+        let options = { mimeType: 'video/webm;codecs=vp8,opus' };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/mp4' };
+        
+        try { recorder = new MediaRecorder(stream, options); } catch(e) { return alert("Error init recorder"); }
+
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            if (currentMode === 'video') {
+                preview.srcObject = null;
+                preview.src = url;
+                preview.muted = false;
+                preview.controls = true;
+                // Прибираємо дзеркальність при перегляді запису
+                preview.style.transform = "scaleX(1)";
+            } else {
+                audioVisualizer.style.display = 'none';
+                const audioP = document.getElementById('audioPreview');
+                audioP.src = url;
+                audioP.style.display = 'block';
+            }
+            cRec.classList.add('hidden');
+            cReview.classList.remove('hidden');
+            timerEl.style.color = "#10b981";
+            if(currentMode === 'audio') document.querySelector('.audio-visual').classList.remove('recording');
+        };
+
+        recorder.start();
+        cStart.classList.add('hidden');
+        cRec.classList.remove('hidden');
+        modeSwitch.style.display = 'none';
+        
+        // Повертаємо дзеркальність для прев'ю камери
+        if (currentMode === 'video') preview.style.transform = "scaleX(-1)";
+        if(currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
+        
+        seconds = 0; timerEl.innerText = "00:00"; isPaused = false;
+        startTimer();
     };
 
-    document.getElementById('uploadBtn').onclick = async () => {
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    window.togglePause = () => {
+        if (isPaused) { recorder.resume(); document.querySelector('.btn-icon').innerText = "⏸"; timerEl.classList.remove('paused'); }
+        else { recorder.pause(); document.querySelector('.btn-icon').innerText = "▶"; timerEl.classList.add('paused'); }
+        isPaused = !isPaused;
+    };
+
+    window.stopRecording = () => { recorder.stop(); clearInterval(interval); };
+    
+    window.retake = () => {
+        if(preview.src) URL.revokeObjectURL(preview.src);
+        cReview.classList.add('hidden');
+        cStart.classList.remove('hidden');
+        modeSwitch.style.display = 'flex';
+        timerEl.style.color = "white";
+        timerEl.innerText = "00:00";
+        // Повертаємо дзеркальність для режиму камери
+        preview.style.transform = "scaleX(-1)";
+        initMedia();
+    };
+
+    window.uploadRecording = async () => {
+        if (!targetEmail) return alert("Error: No recipient config found.");
+        btnSend.innerText = "⏳ Uploading...";
+        btnSend.disabled = true;
+        document.getElementById('retakeBtn').style.display = 'none';
+
+        const blob = new Blob(chunks, { type: 'video/webm' });
         const formData = new FormData();
-        formData.append('file', blob, 'video.webm');
-        formData.append('folder', recipientEmail); 
-        formData.append('subfolder', targetFormName);
+        const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
+        
+        // Використовуємо змінні, які ми дістали в init()
+        const formName = formTitleParam || "General";
 
-        const btn = document.getElementById('uploadBtn');
-        btn.innerText = "⏳ Uploading & Analyzing...";
-        btn.disabled = true;
+        formData.append('file', blob, `${prefix}${Date.now()}.webm`);
+        formData.append('folder', targetEmail);
+        formData.append('subfolder', formName);
 
         try {
             const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
+            if (!res.ok) throw new Error("Upload failed");
             const data = await res.json();
-            if (data.publicUrl) {
-                document.getElementById('status').innerText = "✅ Done! Copy the link below:";
-                const linkInput = document.getElementById('finalLink');
-                linkInput.value = data.publicUrl;
-                linkInput.style.display = 'block';
-                btn.style.display = 'none';
-            } else { throw new Error(data.error || "Upload failed"); }
+            
+            cReview.classList.add('hidden');
+            stage.style.display = 'none';
+            header.style.display = 'none';
+            modeSwitch.style.display = 'none';
+            successView.style.display = 'block';
+            document.getElementById('realLink').innerText = data.publicUrl;
         } catch (e) {
-            document.getElementById('status').innerText = "Error: " + e.message;
-            btn.innerText = "Try Again";
-            btn.disabled = false;
+            alert("Error: " + e.message);
+            btnSend.innerText = "❌ Try Again";
+            btnSend.disabled = false;
         }
     };
+
+    window.copyLink = () => {
+        navigator.clipboard.writeText(document.getElementById('realLink').innerText);
+        const trigger = document.querySelector('.copy-trigger');
+        trigger.classList.add('copied');
+        trigger.querySelector('.copy-label').innerText = "DONE";
+    };
+
+    // Запускаємо при завантаженні
     init();
 </script>
+
 </body>
 </html>
