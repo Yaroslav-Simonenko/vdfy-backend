@@ -41,14 +41,7 @@ const upload = multer({ dest: 'uploads/' });
 
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 const generateShortId = () => Math.random().toString(36).substring(2, 7);
-const generatePassword = (length = 8) => {
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let retVal = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        retVal += charset.charAt(Math.floor(Math.random() * n));
-    }
-    return retVal;
-};
+const generatePassword = (length = 8) => Math.random().toString(36).slice(-length);
 
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
@@ -80,6 +73,9 @@ app.get('/s/:id', async (req, res) => {
         if (!doc.exists) return res.status(404).send("Link not found");
         
         if (doc.data().type === 'video') return res.redirect(`/v/${req.params.id}`);
+        // Redirect to clean recorder link if possible
+        if (doc.data().type === 'recorder') return res.redirect(`/r/${req.params.id}`);
+        
         res.redirect(doc.data().url);
     } catch (e) { res.status(500).send("Server Error"); }
 });
@@ -92,12 +88,13 @@ app.post('/api/shorten', async (req, res) => {
     try {
         const { type, email, formName, longUrl } = req.body;
         const shortId = generateShortId();
-        const host = `${req.protocol}://${req.get('host')}`; 
+        // Use req.headers.host to respect the custom domain
+        const host = `https://${req.headers.host}`; 
 
         let finalUrl = "";
         
         if (type === 'recorder') {
-            // Зберігаємо параметри в базі, щоб не світити в URL
+            // Store config in DB
             await db.collection('shortLinks').doc(shortId).set({
                 type: 'recorder',
                 email: email,       
@@ -106,7 +103,7 @@ app.post('/api/shorten', async (req, res) => {
             });
             finalUrl = `${host}/r/${shortId}`;
         } else {
-            // Звичайне скорочення
+            // General link
             await db.collection('shortLinks').doc(shortId).set({
                 url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -175,8 +172,8 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
         const shortId = generateShortId();
-        const serverUrl = `${req.protocol}://${req.get('host')}`;
-        const secureViewUrl = `${serverUrl}/v/${shortId}`; 
+        const host = `https://${req.headers.host}`;
+        const secureViewUrl = `${host}/v/${shortId}`; 
 
         await db.collection('shortLinks').doc(shortId).set({
             url: longUrl,
@@ -202,7 +199,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
 // 🔥 8. ADMIN: CREATE CLIENT
 app.post('/api/create-client', verifyToken, async (req, res) => {
     try {
-        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- ⚠️ ВСТАВ СЮДИ СВІЙ EMAIL!
+        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- CHANGE THIS TO YOUR EMAIL!
         
         if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
             return res.status(403).json({ error: "Ви не адмін!" });
@@ -214,12 +211,13 @@ app.post('/api/create-client', verifyToken, async (req, res) => {
         const password = generatePassword(10);
 
         await admin.auth().createUser({ email: email, password: password, emailVerified: true });
-
+        
+        const host = `https://${req.headers.host}`;
         res.json({
             success: true,
             email: email,
             password: password,
-            link: "https://vdfy.org/install"
+            link: `${host}/install`
         });
 
     } catch (e) { res.status(500).json({ error: e.message }); }
