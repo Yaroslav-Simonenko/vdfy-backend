@@ -39,11 +39,8 @@ const s3 = new S3Client({
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ dest: 'uploads/' });
 
-// --- HELPERS ---
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 const generateShortId = () => Math.random().toString(36).substring(2, 7);
-
-// Генератор паролів (Потрібен для адмінки)
 const generatePassword = (length = 8) => {
     const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let retVal = "";
@@ -53,7 +50,6 @@ const generatePassword = (length = 8) => {
     return retVal;
 };
 
-// --- MIDDLEWARE ---
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -68,40 +64,72 @@ const verifyToken = async (req, res, next) => {
 
 app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
+
+// 🔥 1. CLEAN RECORDER LINK (/r/xxxxx)
+app.get('/r/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
+});
+
+// Fallback logic
 app.get('/recorder.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'recorder.html')));
 
-// 1. GATEKEEPER (Відео)
-app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
-
-// 2. SHORT LINKS (/s/xxxxx)
+// 🔥 2. SHORT LINK REDIRECT (/s/xxxxx -> Video or Recorder)
 app.get('/s/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
         if (!doc.exists) return res.status(404).send("Link not found");
         
-        if (doc.data().type === 'video') {
-            return res.redirect(`/v/${req.params.id}`);
-        }
+        if (doc.data().type === 'video') return res.redirect(`/v/${req.params.id}`);
         res.redirect(doc.data().url);
     } catch (e) { res.status(500).send("Server Error"); }
 });
 
-// 3. API SHORTEN (Для розширення)
+// 3. VIDEO WATCH PAGE
+app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
+
+// 🔥 4. API: CREATE SHORT LINK (Smart)
 app.post('/api/shorten', async (req, res) => {
     try {
-        const { longUrl, type } = req.body;
+        const { type, email, formName, longUrl } = req.body;
         const shortId = generateShortId();
-        const serverUrl = `${req.protocol}://${req.get('host')}`; 
-        // Примітка: req.get('host') автоматично підтягне vdfy.org, коли ти зайдеш через нього
+        const host = `${req.protocol}://${req.get('host')}`; 
 
-        await db.collection('shortLinks').doc(shortId).set({
-            url: longUrl, type: type || 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        res.json({ shortUrl: `${serverUrl}/s/${shortId}` });
+        let finalUrl = "";
+        
+        if (type === 'recorder') {
+            // Зберігаємо параметри в базі, щоб не світити в URL
+            await db.collection('shortLinks').doc(shortId).set({
+                type: 'recorder',
+                email: email,       
+                formName: formName, 
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            finalUrl = `${host}/r/${shortId}`;
+        } else {
+            // Звичайне скорочення
+            await db.collection('shortLinks').doc(shortId).set({
+                url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            finalUrl = `${host}/s/${shortId}`;
+        }
+
+        res.json({ shortUrl: finalUrl });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 4. GET VIDEO DATA (Для watch.html)
+// 🔥 5. API: GET LINK INFO (For Recorder)
+app.get('/api/link-info/:id', async (req, res) => {
+    try {
+        const doc = await db.collection('shortLinks').doc(req.params.id).get();
+        if (!doc.exists) return res.status(404).json({ error: "Not found" });
+        res.json({ 
+            email: doc.data().email, 
+            formName: doc.data().formName 
+        });
+    } catch (e) { res.status(500).json({ error: "Server error" }); }
+});
+
+// 6. API: GET SECURE VIDEO (For Watch Page)
 app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -117,7 +145,7 @@ app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Server Error" }); }
 });
 
-// 5. UPLOAD (Зберігає відео + текст)
+// 7. API: UPLOAD WITH AI
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
@@ -146,10 +174,9 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
-        // Short Link Generation
         const shortId = generateShortId();
         const serverUrl = `${req.protocol}://${req.get('host')}`;
-        const publicUrl = `${serverUrl}/s/${shortId}`; 
+        const secureViewUrl = `${serverUrl}/v/${shortId}`; 
 
         await db.collection('shortLinks').doc(shortId).set({
             url: longUrl,
@@ -163,7 +190,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
 
-        res.json({ publicUrl: publicUrl, transcription: transcription.text });
+        res.json({ publicUrl: secureViewUrl, transcription: transcription.text });
 
     } catch (e) { 
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -172,11 +199,10 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// 🔥 6. ADMIN: CREATE CLIENT (ОСЬ ЦЕ БУЛО ПРОПУЩЕНО)
+// 🔥 8. ADMIN: CREATE CLIENT
 app.post('/api/create-client', verifyToken, async (req, res) => {
     try {
-        // 👇 ВСТАВ СЮДИ СВІЙ EMAIL (щоб тільки ти міг це робити)
-        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- ЗАМІНИ НА СВІЙ!
+        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- ⚠️ ВСТАВ СЮДИ СВІЙ EMAIL!
         
         if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
             return res.status(403).json({ error: "Ви не адмін!" });
@@ -187,28 +213,19 @@ app.post('/api/create-client', verifyToken, async (req, res) => {
 
         const password = generatePassword(10);
 
-        await admin.auth().createUser({
-            email: email,
-            password: password,
-            emailVerified: true
-        });
+        await admin.auth().createUser({ email: email, password: password, emailVerified: true });
 
-        // 👇 ОСЬ ТУТ Я ПРОПИСАВ ТВІЙ НОВИЙ ДОМЕН
         res.json({
             success: true,
             email: email,
             password: password,
-            link: "https://vdfy.org/install" // <--- ТУТ
+            link: "https://vdfy.org/install"
         });
 
-    } catch (e) {
-        console.error("Create User Error:", e);
-        res.status(500).json({ error: e.message });
-    }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// --- CLIENT APIS ---
-
+// OTHER CLIENT APIS
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     const email = req.user.email ? req.user.email.toLowerCase() : null;
     if (!email) return res.json({ videos: [] });
