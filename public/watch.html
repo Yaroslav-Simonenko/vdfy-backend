@@ -4,46 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Video View</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f3f4f6; color: #1f2937; }
-        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 400px; text-align: center; width: 90%; }
-        h2 { margin-top: 0; }
-        .btn { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 16px; margin-top: 10px; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        body { font-family: 'Inter', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f3f4f6; color: #1f2937; padding: 20px; box-sizing: border-box; }
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 700px; width: 100%; }
+        h2 { margin-top: 0; font-size: 22px; }
+        .btn { background: #6366F1; color: white; border: none; padding: 12px 24px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; margin-top: 10px; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #6366F1; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        video { width: 100%; border-radius: 8px; margin-top: 20px; display: none; }
-        #error-msg { color: #dc2626; display: none; margin-top: 10px; }
+        video { width: 100%; border-radius: 12px; margin-top: 15px; display: none; aspect-ratio: 16/9; background: #000; }
+        
+        .transcription-box { margin-top: 25px; padding: 20px; background: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb; display: none; text-align: left; }
+        .transcription-header { font-weight: 700; font-size: 14px; color: #6b7280; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+        .transcription-text { font-size: 16px; line-height: 1.6; color: #374151; white-space: pre-wrap; }
+        #error-msg { color: #dc2626; display: none; margin-top: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <div id="loading">
-        <div class="loader"></div>
-        <p>Verifying access permissions...</p>
-    </div>
-
-    <div id="login-req" style="display:none;">
+    <div id="loading"><div class="loader"></div><p style="text-align:center;">Verifying access permissions...</p></div>
+    
+    <div id="login-req" style="display:none; text-align:center;">
         <h2>🔒 Restricted Access</h2>
         <p>This video is private. Please sign in to view it.</p>
         <button class="btn" onclick="signIn()">Sign in with Google</button>
+        <p style="font-size:12px; color:#ef4444; margin-top:20px;">Open in Chrome/Safari if you see errors.</p>
     </div>
 
     <div id="content" style="display:none;">
         <h2>📹 Video Response</h2>
-        <p style="color:#6b7280; font-size:14px;">Authorized Access</p>
         <video id="player" controls playsinline></video>
-        <a id="downloadBtn" href="#" target="_blank" style="display:block; margin-top:15px; color:#2563eb; text-decoration:none; font-size:14px;">Download Video</a>
-    </div>
-    <div id="login-req" style="display:none;">
-        <h2>🔒 Restricted Access</h2>
-        <p>This video is private. Please sign in to view it.</p>
-        <button class="btn" onclick="signIn()">Sign in with Google</button>
         
-        <p style="font-size:12px; color:#ef4444; margin-top:20px; max-width:300px; margin-left:auto; margin-right:auto;">
-            If you see an error, please open this link in <b>Chrome</b> or <b>Safari</b> directly (not inside Instagram/Telegram).
-        </p>
+        <div id="textBox" class="transcription-box">
+            <div class="transcription-header">📝 Text Transcription (AI)</div>
+            <div id="textContent" class="transcription-text"></div>
+        </div>
     </div>
     <p id="error-msg"></p>
 </div>
@@ -52,7 +48,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // 👇 ТУТ МАЄ БУТИ ТВІЙ КОНФІГ (Візьми його з dashboard.html)
+    // 🔴 ВСТАВ СВІЙ FIREBASE CONFIG НИЖЧЕ!
     const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -62,56 +58,45 @@
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
 
-
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const videoId = window.location.pathname.split('/').pop(); // Беремо ID з URL (/v/XXXXXX)
+    const pathParts = window.location.pathname.split('/');
+    const videoId = pathParts[pathParts.length - 1]; 
 
     onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            checkAccess(user);
-        } else {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('login-req').style.display = 'block';
-        }
+        if (user) checkAccess(user);
+        else { document.getElementById('loading').style.display = 'none'; document.getElementById('login-req').style.display = 'block'; }
     });
 
-    window.signIn = () => {
-        signInWithPopup(auth, new GoogleAuthProvider());
-    };
+    window.signIn = () => signInWithPopup(auth, new GoogleAuthProvider());
 
     async function checkAccess(user) {
         document.getElementById('login-req').style.display = 'none';
         document.getElementById('loading').style.display = 'block';
-        
         try {
             const token = await user.getIdToken();
-            const res = await fetch(`/api/get-secure-video/${videoId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (res.status === 403) throw new Error("⛔ Access Denied: You are not the owner of this video.");
-            if (res.status === 404) throw new Error("❌ Video not found.");
-            if (!res.ok) throw new Error("Server error.");
+            const res = await fetch(`/api/get-secure-video/${videoId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.status === 403) throw new Error("⛔ Access Denied");
+            if (!res.ok) throw new Error("Video not found");
 
             const data = await res.json();
-            
             document.getElementById('loading').style.display = 'none';
             document.getElementById('content').style.display = 'block';
             
-            const videoEl = document.getElementById('player');
-            videoEl.src = data.url;
-            videoEl.style.display = 'block';
-            document.getElementById('downloadBtn').href = data.url;
+            const vid = document.getElementById('player');
+            vid.src = data.url;
+            vid.style.display = 'block';
 
+            if (data.transcription) {
+                document.getElementById('textBox').style.display = 'block';
+                document.getElementById('textContent').innerText = data.transcription;
+            }
         } catch (e) {
             document.getElementById('loading').style.display = 'none';
-            const errEl = document.getElementById('error-msg');
-            errEl.innerText = e.message;
-            errEl.style.display = 'block';
+            document.getElementById('error-msg').innerText = e.message;
+            document.getElementById('error-msg').style.display = 'block';
         }
     }
 </script>
-
 </body>
 </html>
