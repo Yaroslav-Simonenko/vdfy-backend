@@ -176,7 +176,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
 app.post('/api/create-client', verifyToken, async (req, res) => {
     try {
         // 👇 ВСТАВ СЮДИ СВІЙ EMAIL (щоб тільки ти міг це робити)
-        const ADMIN_EMAIL = "serge@gmail.com"; // <--- ЗАМІНИ НА СВІЙ!
+        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- ЗАМІНИ НА СВІЙ!
         
         if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
             return res.status(403).json({ error: "Ви не адмін!" });
