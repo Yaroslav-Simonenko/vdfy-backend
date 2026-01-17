@@ -42,6 +42,7 @@
             gap: 16px;
         }
 
+        /* Loading Spinner */
         #pageLoader {
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
         }
@@ -66,7 +67,7 @@
 
         video { 
             width: 100%; height: 100%; object-fit: cover; display: block; 
-            transform: scaleX(1); /* 🔥 ВИПРАВЛЕНО: Прибрали scaleX(-1) */
+            transform: scaleX(1); /* Нормальний вигляд (не дзеркало) */
         }
 
         .timer-badge {
@@ -101,7 +102,10 @@
         .success-card { display: none; text-align: center; padding: 20px; }
         .copy-trigger { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin: 20px 0; }
         .copy-trigger.copied { background: #ecfdf5; border-color: #86efac; }
-        
+
+        /* Error Message Box */
+        #error-log { color: #dc2626; font-size: 13px; margin-top: 15px; background: #fee2e2; padding: 12px; border-radius: 8px; display: none; text-align: center; border: 1px solid #fecaca; }
+
         .hidden { display: none !important; }
         @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
@@ -149,6 +153,7 @@
     <div id="controls-review" class="hidden" style="width:100%;">
         <button id="sendBtn" class="btn-primary" onclick="uploadRecording()">✅ Send Response</button>
         <button id="retakeBtn" class="btn-secondary" onclick="retake()">🔄 Retake</button>
+        <div id="error-log"></div>
     </div>
 
     <div id="successView" class="success-card">
@@ -164,17 +169,21 @@
             <span class="copy-label" style="color:var(--primary); font-weight:700;">COPY</span>
         </div>
         <div id="realLink" style="display:none;"></div>
+        <button class="btn-secondary" onclick="window.location.reload()" style="margin-top:20px;">Record Another</button>
     </div>
 </div>
 
 <script>
+    // --- GLOBAL VARS ---
     let targetEmail = "";
     let formTitleParam = "General";
 
+    // --- 1. INITIALIZATION ---
     async function init() {
         const pathParts = window.location.pathname.split('/');
         const id = pathParts[pathParts.length - 1]; 
         
+        // Legacy support (?to=...)
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('to')) {
             targetEmail = urlParams.get('to');
@@ -186,16 +195,20 @@
         if (id && id !== 'recorder.html') {
             try {
                 const res = await fetch(`/api/link-info/${id}`);
-                if (!res.ok) throw new Error("Link invalid");
+                if (!res.ok) throw new Error("Link invalid or expired");
                 const data = await res.json();
+                
                 targetEmail = data.email;
                 formTitleParam = data.formName || "General";
+                
                 showApp();
             } catch (e) {
-                document.getElementById('pageLoader').innerHTML = `<p style="color:red">❌ Link expired or invalid.</p>`;
+                document.getElementById('pageLoader').innerHTML = 
+                    `<p style="color:red; text-align:center">❌ Link Expired or Invalid.<br>Please generate a new link.</p>`;
             }
         } else {
-            document.getElementById('pageLoader').innerHTML = `<p style="color:#6b7280">⚠️ Direct access mode.</p>`;
+            // Direct access (test mode)
+            targetEmail = "public_test"; 
             showApp();
         }
     }
@@ -207,10 +220,10 @@
         if(formTitleParam && formTitleParam !== "General") {
             document.getElementById('formTitle').innerText = decodeURIComponent(formTitleParam);
         }
-        
         initMedia();
     }
 
+    // --- 2. RECORDING LOGIC ---
     let currentMode = 'video';
     let stream, recorder, chunks = [], seconds = 0, interval, isPaused = false;
 
@@ -218,14 +231,14 @@
     const audioVisualizer = document.getElementById('audioVisualizer');
     const timerEl = document.getElementById('timer');
     const btnSend = document.getElementById('sendBtn');
+    const errorLog = document.getElementById('error-log');
     
+    // UI Groups
     const cStart = document.getElementById('controls-start');
     const cRec = document.getElementById('controls-rec');
     const cReview = document.getElementById('controls-review');
     const successView = document.getElementById('successView');
     const modeSwitch = document.getElementById('modeSwitch');
-    const header = document.getElementById('header');
-    const stage = document.getElementById('stage');
 
     async function initMedia() {
         if (stream) stream.getTracks().forEach(track => track.stop());
@@ -241,14 +254,13 @@
                 preview.srcObject = stream;
                 preview.muted = true;
                 preview.controls = false;
-                // 🔥 ВИПРАВЛЕНО: Більше не дзеркалимо при старті
-                preview.style.transform = "scaleX(1)";
+                preview.style.transform = "scaleX(1)"; // No mirror
             } else {
                 preview.style.display = 'none';
                 audioVisualizer.style.display = 'flex';
             }
             document.getElementById('audioPreview').style.display = 'none';
-        } catch (e) { alert("Camera access denied: " + e.message); }
+        } catch (e) { alert("Camera/Mic Access Denied. Please allow permissions."); }
     }
 
     window.switchMode = (mode) => {
@@ -271,10 +283,14 @@
 
     window.startRecording = () => {
         chunks = [];
-        let options = { mimeType: 'video/webm;codecs=vp8,opus' };
-        if (!MediaRecorder.isTypeSupported(options.mimeType)) options = { mimeType: 'video/mp4' };
+        let options = { mimeType: 'video/webm' };
+        // Fallback for Safari/others
+        if (!MediaRecorder.isTypeSupported('video/webm')) {
+            options = { mimeType: 'video/mp4' };
+        }
         
-        try { recorder = new MediaRecorder(stream, options); } catch(e) { return alert("Error init recorder"); }
+        try { recorder = new MediaRecorder(stream, options); } 
+        catch(e) { return alert("Error initializing recorder: " + e.message); }
 
         recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
         recorder.onstop = () => {
@@ -285,7 +301,6 @@
                 preview.src = url;
                 preview.muted = false;
                 preview.controls = true;
-                // Запис завжди нормальний
                 preview.style.transform = "scaleX(1)";
             } else {
                 audioVisualizer.style.display = 'none';
@@ -303,8 +318,6 @@
         cStart.classList.add('hidden');
         cRec.classList.remove('hidden');
         modeSwitch.style.display = 'none';
-        
-        // 🔥 ВИПРАВЛЕНО: Не дзеркалимо під час запису
         if (currentMode === 'video') preview.style.transform = "scaleX(1)";
         if(currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
         
@@ -320,57 +333,77 @@
 
     window.stopRecording = () => { recorder.stop(); clearInterval(interval); };
     
+    // 🔥 RETAKE RELOADS THE PAGE TO CLEAR BUGS
     window.retake = () => {
-        if(preview.src) URL.revokeObjectURL(preview.src);
-        cReview.classList.add('hidden');
-        cStart.classList.remove('hidden');
-        modeSwitch.style.display = 'flex';
-        timerEl.style.color = "white";
-        timerEl.innerText = "00:00";
-        // 🔥 ВИПРАВЛЕНО: При ретейку теж не дзеркалимо
-        preview.style.transform = "scaleX(1)";
-        initMedia();
+        window.location.reload();
     };
 
     window.uploadRecording = async () => {
-        if (!targetEmail) return alert("Error: No recipient config found.");
+        // Fallback email if missing
+        const finalEmail = targetEmail || "public_rescue";
+
         btnSend.innerText = "⏳ Uploading...";
         btnSend.disabled = true;
         document.getElementById('retakeBtn').style.display = 'none';
+        errorLog.style.display = 'none';
 
         const blob = new Blob(chunks, { type: 'video/webm' });
+        
+        // Size check (Cloudflare limit ~100MB)
+        if (blob.size > 95 * 1024 * 1024) {
+             showError("❌ File too large (>100MB). Please record a shorter video.");
+             btnSend.disabled = false;
+             btnSend.innerText = "✅ Send Response";
+             return;
+        }
+
         const formData = new FormData();
         const prefix = currentMode === 'video' ? 'rec_vid_' : 'rec_aud_';
-        
         const formName = formTitleParam || "General";
 
         formData.append('file', blob, `${prefix}${Date.now()}.webm`);
-        formData.append('folder', targetEmail);
+        formData.append('folder', finalEmail);
         formData.append('subfolder', formName);
 
         try {
             const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
-            if (!res.ok) throw new Error("Upload failed");
+            
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || "Server Error");
+            }
+            
             const data = await res.json();
             
+            // Show Success UI
             cReview.classList.add('hidden');
-            stage.style.display = 'none';
-            header.style.display = 'none';
+            document.getElementById('stage').style.display = 'none';
+            document.getElementById('header').style.display = 'none';
             modeSwitch.style.display = 'none';
             successView.style.display = 'block';
             document.getElementById('realLink').innerText = data.publicUrl;
+
         } catch (e) {
-            alert("Error: " + e.message);
+            console.error(e);
+            showError("Upload Failed: " + e.message);
             btnSend.innerText = "❌ Try Again";
             btnSend.disabled = false;
+            document.getElementById('retakeBtn').style.display = 'block';
         }
     };
 
+    function showError(msg) {
+        errorLog.innerText = msg;
+        errorLog.style.display = 'block';
+    }
+
     window.copyLink = () => {
-        navigator.clipboard.writeText(document.getElementById('realLink').innerText);
-        const trigger = document.querySelector('.copy-trigger');
-        trigger.classList.add('copied');
-        trigger.querySelector('.copy-label').innerText = "DONE";
+        const link = document.getElementById('realLink').innerText;
+        navigator.clipboard.writeText(link).then(() => {
+            const trigger = document.querySelector('.copy-trigger');
+            trigger.classList.add('copied');
+            trigger.querySelector('.copy-label').innerText = "DONE";
+        });
     };
 
     init();
