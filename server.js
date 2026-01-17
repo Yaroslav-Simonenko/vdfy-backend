@@ -160,9 +160,11 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
                 .save(compressedPath).on('end', resolve).on('error', reject);
         });
 
+        // 🔥 ОСЬ ТУТ ЗМІНА ПРОМПТА
         const transcription = await openai.audio.transcriptions.create({ 
-            file: fs.createReadStream(compressedPath), model: "whisper-1",
-            prompt: "Video response. Languages: Ukrainian, Russian, English." 
+            file: fs.createReadStream(compressedPath), 
+            model: "whisper-1",
+            prompt: "Transcribe mixed languages. Привіт. Hello. English and Ukrainian speech combined. Дякую. Thank you." 
         });
 
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
