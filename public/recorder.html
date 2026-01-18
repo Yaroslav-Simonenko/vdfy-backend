@@ -11,7 +11,6 @@
         :root { --primary: #6366F1; --danger: #ef4444; --bg: #F3F4F6; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; box-sizing: border-box; }
         
-        /* СТАРИЙ ДИЗАЙН КАРТКИ */
         .container { 
             width: 100%; max-width: 500px; background: white; 
             padding: 30px; border-radius: 20px; 
@@ -22,25 +21,32 @@
         h2 { margin: 0 0 5px 0; color: #111827; }
         p { margin: 0; color: #6b7280; font-size: 14px; }
 
+        /* TABS */
+        .tabs { display: flex; background: #f3f4f6; padding: 4px; border-radius: 10px; margin-bottom: 10px; }
+        .tab { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.2s; }
+        .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
         .media-wrapper { 
             width: 100%; aspect-ratio: 16/9; background: #000; 
             border-radius: 12px; overflow: hidden; position: relative; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
         
+        /* AUDIO VISUALIZER */
+        .audio-visual { display: none; width: 100%; height: 100%; background: #1e1b4b; flex-direction: column; align-items: center; justify-content: center; }
+        .mic-circle { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+        .recording .mic-circle { background: var(--danger); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
         .timer { 
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
             background: rgba(0,0,0,0.6); color: white; padding: 4px 12px; 
-            border-radius: 20px; font-weight: 600; font-size: 14px;
+            border-radius: 20px; font-weight: 600; font-size: 14px; z-index: 10;
         }
 
-        /* КНОПКИ ЗІ СТАРОГО ДИЗАЙНУ */
         .controls { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-        button { 
-            width: 100%; padding: 14px; border-radius: 10px; border: none; 
-            font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; 
-        }
+        button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; }
         button:active { transform: scale(0.98); }
 
         .btn-rec { background: var(--danger); color: white; }
@@ -49,11 +55,7 @@
         .btn-sec { background: #f3f4f6; color: #374151; }
 
         #loader { text-align: center; color: #6b7280; }
-        .spinner { 
-            width: 40px; height: 40px; border: 4px solid #e5e7eb; 
-            border-top: 4px solid var(--primary); border-radius: 50%; 
-            animation: spin 1s linear infinite; margin: 0 auto 15px auto; 
-        }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .hidden { display: none !important; }
         #status { font-size: 13px; margin-top: 10px; font-weight: 500; }
@@ -72,9 +74,21 @@
         <p>Record your answer</p>
     </header>
 
+    <div class="tabs">
+        <button class="tab active" onclick="switchMode('video')">Video</button>
+        <button class="tab" onclick="switchMode('audio')">Audio Only</button>
+    </div>
+
     <div class="media-wrapper">
         <div class="timer" id="timer">00:00</div>
         <video id="preview" autoplay muted playsinline></video>
+        
+        <div id="audioVisualizer" class="audio-visual">
+            <div class="mic-circle">🎤</div>
+            <div style="color:white; margin-top:10px; font-size:12px;">Microphone Active</div>
+        </div>
+        
+        <audio id="audioReview" controls style="display:none; width:90%; position:absolute; bottom:20px; z-index:20;"></audio>
     </div>
 
     <div id="controls-init" class="controls">
@@ -99,6 +113,7 @@
     
     let stream, recorder, chunks = [], seconds = 0, timerInterval;
     let targetEmail = "", formTitle = "";
+    let currentMode = 'video';
 
     async function init() {
         const id = window.location.pathname.split('/').pop();
@@ -109,13 +124,13 @@
             
             targetEmail = data.email;
             formTitle = data.formName;
-            document.getElementById('formName').innerText = formTitle;
+            document.getElementById('formName').innerText = decodeURIComponent(formTitle);
 
             document.getElementById('loader-text').innerText = "Initializing optimizer...";
             if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-            stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('preview').srcObject = stream;
+            await initMedia();
+            
             document.getElementById('loader').classList.add('hidden');
             document.getElementById('app').style.display = 'flex';
         } catch (e) {
@@ -123,12 +138,47 @@
         }
     }
 
+    async function initMedia() {
+        if (stream) stream.getTracks().forEach(track => track.stop());
+        
+        const constraints = currentMode === 'video' 
+            ? { video: true, audio: true }
+            : { video: false, audio: true };
+
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        const preview = document.getElementById('preview');
+        const visualizer = document.getElementById('audioVisualizer');
+
+        if (currentMode === 'video') {
+            preview.style.display = 'block';
+            visualizer.style.display = 'none';
+            preview.srcObject = stream;
+            preview.muted = true;
+        } else {
+            preview.style.display = 'none';
+            visualizer.style.display = 'flex';
+        }
+    }
+
+    window.switchMode = (mode) => {
+        currentMode = mode;
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        initMedia();
+    };
+
     function startRec() {
         recorder = new MediaRecorder(stream);
         recorder.ondataavailable = e => chunks.push(e.data);
         recorder.start();
+        
         document.getElementById('controls-init').classList.add('hidden');
         document.getElementById('controls-active').classList.remove('hidden');
+        document.querySelectorAll('.tab').forEach(t => t.disabled = true); // Lock tabs
+        
+        if (currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
+
         timerInterval = setInterval(() => {
             seconds++;
             document.getElementById('timer').innerText = new Date(seconds * 1000).toISOString().substr(14, 5);
@@ -140,13 +190,23 @@
         clearInterval(timerInterval);
         document.getElementById('controls-active').classList.add('hidden');
         document.getElementById('controls-review').classList.remove('hidden');
+        if (currentMode === 'audio') document.querySelector('.audio-visual').classList.remove('recording');
         
         recorder.onstop = () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
-            document.getElementById('preview').srcObject = null;
-            document.getElementById('preview').src = URL.createObjectURL(blob);
-            document.getElementById('preview').muted = false;
-            document.getElementById('preview').controls = true;
+            const url = URL.createObjectURL(blob);
+            
+            if (currentMode === 'video') {
+                const preview = document.getElementById('preview');
+                preview.srcObject = null;
+                preview.src = url;
+                preview.muted = false;
+                preview.controls = true;
+            } else {
+                const audioPlayer = document.getElementById('audioReview');
+                audioPlayer.src = url;
+                audioPlayer.style.display = 'block';
+            }
         };
     }
 
@@ -156,14 +216,19 @@
         btn.disabled = true;
         
         try {
-            status.innerText = "⏳ Compressing video (please wait)...";
+            status.innerText = "⏳ Compressing & Optimizing...";
             status.style.color = "#6366F1";
             
             const webmBlob = new Blob(chunks, { type: 'video/webm' });
             ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
             
-            // Стиснення: Швидкий пресет, якість 28
-            await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
+            // Якщо Відео -> стискаємо в H.264 MP4
+            // Якщо Аудіо -> конвертуємо в AAC MP4 (без відео доріжки), сервер прийме це як "відео" файл
+            if (currentMode === 'video') {
+                await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
+            } else {
+                await ffmpeg.run('-i', 'input.webm', '-vn', '-acodec', 'aac', 'output.mp4');
+            }
             
             const mp4Data = ffmpeg.FS('readFile', 'output.mp4');
             const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
