@@ -13,13 +13,18 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
+
+// 🔥 ВАЖЛИВО: Ці заголовки МАЮТЬ бути на самому початку для роботи FFmpeg.wasm
+app.use((req, res, next) => {
+    res.header("Cross-Origin-Embedder-Policy", "require-corp");
+    res.header("Cross-Origin-Opener-Policy", "same-origin");
+    next();
+});
+
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(express.static('public'));
-
-const server = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
-server.setTimeout(600000); 
 
 // --- CONFIG ---
 let serviceAccount;
@@ -59,67 +64,33 @@ const verifyToken = async (req, res, next) => {
 app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 
-// 🔥 1. CLEAN RECORDER LINK (/r/xxxxx)
+// 🔥 1. CLEAN RECORDER LINK
 app.get('/r/:id', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
-// Fallback logic
-app.get('/recorder.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'recorder.html')));
-
-// 🔥 2. SHORT LINK REDIRECT (/s/xxxxx -> Video or Recorder)
+// 🔥 2. REDIRECTS
 app.get('/s/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
         if (!doc.exists) return res.status(404).send("Link not found");
-        
         if (doc.data().type === 'video') return res.redirect(`/v/${req.params.id}`);
-        // Redirect to clean recorder link if possible
         if (doc.data().type === 'recorder') return res.redirect(`/r/${req.params.id}`);
-        
         res.redirect(doc.data().url);
     } catch (e) { res.status(500).send("Server Error"); }
 });
 
-// 3. VIDEO WATCH PAGE
 app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
 
-// 🔥 4. API: CREATE SHORT LINK (Smart)
-app.post('/api/shorten', async (req, res) => {
-    try {
-        const { type, email, formName, longUrl } = req.body;
-        const shortId = generateShortId();
-        // Use req.headers.host to respect the custom domain
-        const host = `https://${req.headers.host}`; 
-
-        let finalUrl = "";
-        
-        if (type === 'recorder') {
-            // Store config in DB
-            await db.collection('shortLinks').doc(shortId).set({
-                type: 'recorder',
-                email: email,       
-                formName: formName, 
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            finalUrl = `${host}/r/${shortId}`;
-        } else {
-            // General link
-            await db.collection('shortLinks').doc(shortId).set({
-                url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-            finalUrl = `${host}/s/${shortId}`;
-        }
-
-        res.json({ shortUrl: finalUrl });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 🔥 5. API: GET LINK INFO (For Recorder)
+// 🔥 3. API: GET LINK INFO (Для рекордера)
 app.get('/api/link-info/:id', async (req, res) => {
     try {
+        console.log("🔍 Checking link info for ID:", req.params.id);
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
-        if (!doc.exists) return res.status(404).json({ error: "Not found" });
+        if (!doc.exists) {
+            console.log("❌ Link not found in Firestore");
+            return res.status(404).json({ error: "Not found" });
+        }
         res.json({ 
             email: doc.data().email, 
             formName: doc.data().formName 
@@ -127,23 +98,31 @@ app.get('/api/link-info/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Server error" }); }
 });
 
-// 6. API: GET SECURE VIDEO (For Watch Page)
-app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
+// 🔥 4. API: SHORTEN
+app.post('/api/shorten', async (req, res) => {
     try {
-        const doc = await db.collection('shortLinks').doc(req.params.id).get();
-        if (!doc.exists) return res.status(404).json({ error: "Not found" });
-        
-        const data = doc.data();
-        const requester = req.user.email.toLowerCase();
-        const owner = data.email ? data.email.toLowerCase() : "";
+        const { type, email, formName, longUrl } = req.body;
+        const shortId = generateShortId();
+        const host = `https://${req.headers.host}`; 
 
-        if (requester !== owner) return res.status(403).json({ error: "Access Denied" });
-        
-        res.json({ url: data.url, transcription: data.transcription || "" });
-    } catch (e) { res.status(500).json({ error: "Server Error" }); }
+        if (type === 'recorder') {
+            await db.collection('shortLinks').doc(shortId).set({
+                type: 'recorder',
+                email: email,       
+                formName: formName || "General", 
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return res.json({ shortUrl: `${host}/r/${shortId}` });
+        } else {
+            await db.collection('shortLinks').doc(shortId).set({
+                url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            return res.json({ shortUrl: `${host}/s/${shortId}` });
+        }
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 7. API: UPLOAD WITH AI
+// 🔥 5. API: UPLOAD (З підтримкою AI)
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
@@ -156,16 +135,19 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         tempPath = req.file.path;
         compressedPath = tempPath + '_compressed.mp4';
 
+        // Серверне стиснення (якщо клієнт надіслав нестиснене)
         await new Promise((resolve, reject) => {
-            ffmpeg(tempPath).outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac', '-b:a 128k'])
-                .save(compressedPath).on('end', resolve).on('error', reject);
+            ffmpeg(tempPath)
+                .outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac', '-b:a 128k'])
+                .save(compressedPath)
+                .on('end', resolve)
+                .on('error', reject);
         });
 
-        // 🔥 Whisper Prompt Fix
         const transcription = await openai.audio.transcriptions.create({ 
             file: fs.createReadStream(compressedPath), 
             model: "whisper-1",
-            prompt: "Transcribe mixed languages. Привіт. Hello. English and Ukrainian speech combined. Дякую. Thank you." 
+            prompt: "Transcribe mixed languages. Привіт. Hello. English and Ukrainian combined. Дякую." 
         });
 
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
@@ -175,9 +157,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
         const shortId = generateShortId();
-        const host = `https://${req.headers.host}`;
-        const secureViewUrl = `${host}/v/${shortId}`; 
-
         await db.collection('shortLinks').doc(shortId).set({
             url: longUrl,
             r2Key: r2Key,
@@ -190,8 +169,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
 
-        res.json({ publicUrl: secureViewUrl, transcription: transcription.text });
-
+        res.json({ publicUrl: `https://${req.headers.host}/v/${shortId}`, transcription: transcription.text });
     } catch (e) { 
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (compressedPath && fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
@@ -199,68 +177,24 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// ==================== ADMIN ZONE ====================
+// --- CLIENT & ADMIN APIs (Спрощено для читання) ---
 
-// Функція генерації паролів (Покращена)
-const generatePassword = (length = 10) => {
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
-    let retVal = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-        retVal += charset.charAt(Math.floor(Math.random() * n));
-    }
-    return retVal;
-};
-
-// API: Створення клієнта (Тільки для Адміна)
 app.post('/api/create-client', verifyToken, async (req, res) => {
+    const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
+    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).json({ error: "Access Denied" });
     try {
-        // 👇 Твоя пошта адміна
-        const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
-        
-        if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-            return res.status(403).json({ error: "Access Denied: You are not the Super Admin." });
-        }
-
         const { email } = req.body;
-        if (!email) return res.status(400).json({ error: "Email is required" });
-
-        // 1. Генеруємо пароль
-        const password = generatePassword(12);
-
-        // 2. Створюємо юзера в Firebase
-        const userRecord = await admin.auth().createUser({
-            email: email,
-            password: password,
-            emailVerified: true // Одразу підтверджуємо, щоб не мучились
-        });
-
-        // 3. Формуємо красиву відповідь
-        const host = `https://${req.headers.host}`; // vdfy.org
-        
-        res.json({
-            success: true,
-            credentials: {
-                email: email,
-                password: password,
-                loginLink: `${host}/dashboard`,
-                installLink: `${host}/install` // Якщо ти зробив сторінку інсталяції, або прямий лінк на ZIP
-            }
-        });
-
-    } catch (e) {
-        console.error("Create User Error:", e);
-        res.status(500).json({ error: e.message });
-    }
+        const password = Math.random().toString(36).substring(2, 12);
+        await admin.auth().createUser({ email, password, emailVerified: true });
+        res.json({ success: true, credentials: { email, password } });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ==================== CLIENT APIs ====================
-
 app.get('/api/my-videos', verifyToken, async (req, res) => {
-    const email = req.user.email ? req.user.email.toLowerCase() : null;
-    if (!email) return res.json({ videos: [] });
     try {
+        const email = req.user.email.toLowerCase();
         const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: `users/${email.replace(/[@.]/g, '_')}/` }));
-        const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4') || i.Key.endsWith('.webm')).map(i => ({
+        const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4')).map(i => ({
             key: i.Key, url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, uploadedAt: i.LastModified,
             formName: i.Key.split('/').length > 3 ? decodeURIComponent(i.Key.split('/')[2]) : "General"
         }));
@@ -268,32 +202,16 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     } catch (e) { res.json({ videos: [] }); }
 });
 
-app.delete('/api/delete-video', verifyToken, async (req, res) => {
-    try {
-        const email = req.user.email.toLowerCase();
-        const videoKey = req.body.videoKey;
-        if (!videoKey.startsWith(`users/${email.replace(/[@.]/g, '_')}/`)) return res.status(403).json({ error: "Denied" });
-        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey }));
-        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
-        const snapshot = await db.collection('shortLinks').where('r2Key', '==', videoKey).get();
-        const batch = db.batch();
-        snapshot.docs.forEach(doc => batch.delete(doc.ref));
-        await batch.commit();
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
+        const transcript = await textRes.text();
         const gpt = await openai.chat.completions.create({
-            model: "gpt-4o-mini", messages: [{ role: "system", content: "Summarize." }, { role: "user", content: await textRes.text() }]
+            model: "gpt-4o-mini", messages: [{ role: "system", content: "Summarize interview." }, { role: "user", content: transcript }]
         });
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
 });
-app.use((req, res, next) => {
-    res.header("Cross-Origin-Embedder-Policy", "require-corp");
-    res.header("Cross-Origin-Opener-Policy", "same-origin");
-    next();
-});
+
+const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
+serverInstance.setTimeout(600000);
