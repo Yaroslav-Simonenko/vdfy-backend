@@ -9,26 +9,43 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root { --primary: #6366F1; --danger: #ef4444; --success: #10b981; --bg: #F3F4F6; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--bg); 
+            margin: 0; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+            padding: 16px; 
+            box-sizing: border-box; 
+        }
         
         .container { 
-            width: 100%; max-width: 500px; background: white; 
-            padding: 30px; border-radius: 20px; 
+            width: 100%; 
+            max-width: 500px; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 20px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-            display: none; flex-direction: column; gap: 20px; text-align: center;
+            display: none; 
+            flex-direction: column; 
+            gap: 20px; 
+            text-align: center;
         }
 
-        h2 { margin: 0 0 5px 0; color: #111827; }
+        h2 { margin: 0 0 5px 0; color: #111827; font-size: 22px; }
         p { margin: 0; color: #6b7280; font-size: 14px; }
 
         /* TABS */
-        .tabs { display: flex; background: #f3f4f6; padding: 4px; border-radius: 10px; margin-bottom: 10px; }
-        .tab { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.2s; }
+        .tabs { display: flex; background: #f3f4f6; padding: 4px; border-radius: 12px; margin-bottom: 5px; }
+        .tab { flex: 1; border: none; background: transparent; padding: 10px; border-radius: 10px; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.2s; }
         .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
         .media-wrapper { 
             width: 100%; aspect-ratio: 16/9; background: #000; 
-            border-radius: 12px; overflow: hidden; position: relative; 
+            border-radius: 16px; overflow: hidden; position: relative; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;
         }
         video { width: 100%; height: 100%; object-fit: cover; }
@@ -41,56 +58,76 @@
 
         .timer { 
             position: absolute; top: 15px; left: 50%; transform: translateX(-50%); 
-            background: rgba(0,0,0,0.6); color: white; padding: 4px 12px; 
+            background: rgba(0,0,0,0.6); color: white; padding: 6px 14px; 
             border-radius: 20px; font-weight: 600; font-size: 14px; z-index: 10;
         }
 
-        .controls { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-        button { width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .controls { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+        button { 
+            width: 100%; padding: 16px; border-radius: 14px; border: none; 
+            font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; 
+            -webkit-tap-highlight-color: transparent; /* Прибирає виділення на мобільних */
+        }
         button:active { transform: scale(0.98); }
 
-        .btn-rec { background: var(--danger); color: white; }
+        .btn-rec { background: var(--danger); color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
         .btn-stop { background: #374151; color: white; }
-        .btn-send { background: var(--primary); color: white; }
+        .btn-send { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
         .btn-sec { background: #f3f4f6; color: #374151; }
         .btn-copy { background: var(--success); color: white; }
 
         /* LINK BOX */
-        .link-box { display: flex; gap: 10px; margin-top: 10px; }
-        .link-input { flex: 1; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; color: #374151; background: #f9fafb; outline: none; }
+        .link-box { display: flex; gap: 8px; margin-top: 15px; }
+        .link-input { 
+            flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; 
+            font-size: 16px; /* 16px запобігає зуму на iPhone */
+            color: #374151; background: #f9fafb; outline: none; 
+        }
 
         #loader { text-align: center; color: #6b7280; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .hidden { display: none !important; }
-        #status { font-size: 13px; margin-top: 10px; font-weight: 500; }
+        #status { font-size: 14px; margin-top: 15px; font-weight: 500; }
+
+        /* 📱 МОБІЛЬНА АДАПТАЦІЯ */
+        @media (max-width: 480px) {
+            .container { 
+                padding: 20px; 
+                width: 100%;
+                border-radius: 16px;
+            }
+            h2 { font-size: 20px; }
+            .link-box { flex-direction: column; }
+            .btn-copy { width: 100%; }
+        }
     </style>
 </head>
 <body>
 
 <div id="loader">
     <div class="spinner"></div>
-    <p id="loader-text">Loading...</p>
+    <p id="loader-text">Loading system...</p>
 </div>
 
 <div class="container" id="app">
     <header id="mainHeader">
         <h2 id="formName">Video Response</h2>
-        <p>Record your answer</p>
+        <p>Record your answer below</p>
     </header>
 
     <div id="successView" class="hidden">
-        <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
+        <div style="font-size: 60px; margin-bottom: 10px;">🎉</div>
         <h2>Upload Complete!</h2>
-        <p>Copy the link below and paste it into the form.</p>
+        <p>Copy the link and paste it into the Google Form.</p>
         
         <div class="link-box">
-            <input type="text" id="shareLink" class="link-input" readonly>
-            <button class="btn-copy" onclick="copyLink()" style="width: auto; padding: 0 20px;">Copy</button>
+            <input type="text" id="shareLink" class="link-input" readonly onclick="this.select()">
+            <button class="btn-copy" onclick="copyLink()" style="width: auto; min-width: 80px;">Copy</button>
         </div>
 
-        <a id="watchBtn" href="#" target="_blank" style="display: block; margin-top: 20px; color: var(--primary); text-decoration: none; font-weight: 600;">👀 Check my video</a>
-        <button class="btn-sec" onclick="location.reload()" style="margin-top: 10px;">Record Another</button>
+        <a id="watchBtn" href="#" target="_blank" style="display: block; margin-top: 25px; color: var(--primary); text-decoration: none; font-weight: 600; padding: 10px; border-radius: 8px; background: #eff6ff;">👀 Check my recording</a>
+        <button class="btn-sec" onclick="location.reload()" style="margin-top: 15px;">Record Another</button>
     </div>
 
     <div id="recordingInterface">
@@ -116,7 +153,7 @@
         </div>
 
         <div id="controls-active" class="controls hidden">
-            <button class="btn-stop" onclick="stopRec()">⏹ Stop</button>
+            <button class="btn-stop" onclick="stopRec()">⏹ Stop Recording</button>
         </div>
 
         <div id="controls-review" class="controls hidden">
@@ -145,9 +182,15 @@
             
             targetEmail = data.email;
             formTitle = data.formName;
-            document.getElementById('formName').innerText = decodeURIComponent(formTitle);
+            
+            // 🔥 ВИПРАВЛЕННЯ %20 в заголовку
+            try {
+                document.getElementById('formName').innerText = decodeURIComponent(formTitle);
+            } catch(e) {
+                document.getElementById('formName').innerText = formTitle;
+            }
 
-            document.getElementById('loader-text').innerText = "Initializing optimizer...";
+            document.getElementById('loader-text').innerText = "Loading optimizer (30MB)...";
             if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
             await initMedia();
@@ -155,7 +198,7 @@
             document.getElementById('loader').classList.add('hidden');
             document.getElementById('app').style.display = 'flex';
         } catch (e) {
-            document.getElementById('loader').innerHTML = `<p style="color:red">❌ Invalid Link</p>`;
+            document.getElementById('loader').innerHTML = `<p style="color:red; font-weight:bold;">❌ Invalid or Expired Link</p>`;
         }
     }
 
@@ -163,22 +206,26 @@
         if (stream) stream.getTracks().forEach(track => track.stop());
         
         const constraints = currentMode === 'video' 
-            ? { video: true, audio: true }
+            ? { video: { facingMode: "user" }, audio: true } // facingMode="user" для фронталки
             : { video: false, audio: true };
 
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        const preview = document.getElementById('preview');
-        const visualizer = document.getElementById('audioVisualizer');
+        try {
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            const preview = document.getElementById('preview');
+            const visualizer = document.getElementById('audioVisualizer');
 
-        if (currentMode === 'video') {
-            preview.style.display = 'block';
-            visualizer.style.display = 'none';
-            preview.srcObject = stream;
-            preview.muted = true;
-        } else {
-            preview.style.display = 'none';
-            visualizer.style.display = 'flex';
+            if (currentMode === 'video') {
+                preview.style.display = 'block';
+                visualizer.style.display = 'none';
+                preview.srcObject = stream;
+                preview.muted = true;
+            } else {
+                preview.style.display = 'none';
+                visualizer.style.display = 'flex';
+            }
+        } catch (err) {
+            alert("Please allow camera/microphone access to record.");
         }
     }
 
@@ -190,13 +237,15 @@
     };
 
     function startRec() {
+        if (!stream) return initMedia();
         recorder = new MediaRecorder(stream);
         recorder.ondataavailable = e => chunks.push(e.data);
         recorder.start();
         
         document.getElementById('controls-init').classList.add('hidden');
         document.getElementById('controls-active').classList.remove('hidden');
-        document.querySelectorAll('.tab').forEach(t => t.disabled = true);
+        document.querySelectorAll('.tab').forEach(t => t.style.pointerEvents = 'none');
+        document.querySelectorAll('.tab').forEach(t => t.style.opacity = '0.5');
         
         if (currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
 
@@ -243,6 +292,7 @@
             const webmBlob = new Blob(chunks, { type: 'video/webm' });
             ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
             
+            // Швидка оптимізація (ultrafast)
             if (currentMode === 'video') {
                 await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
             } else {
@@ -252,7 +302,7 @@
             const mp4Data = ffmpeg.FS('readFile', 'output.mp4');
             const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
 
-            status.innerText = "🚀 Uploading...";
+            status.innerText = "🚀 Uploading to secure cloud...";
 
             const fd = new FormData();
             fd.append('file', mp4Blob, `rec_${Date.now()}.mp4`);
@@ -262,16 +312,12 @@
             const uploadRes = await fetch('/api/upload-with-ai', { method: 'POST', body: fd });
             if (!uploadRes.ok) throw new Error("Server Error");
 
-            // 🔥 ТУТ МИ ОТРИМУЄМО ПОСИЛАННЯ ВІД СЕРВЕРА
             const data = await uploadRes.json();
 
-            // Ховаємо інтерфейс запису
+            // 🔥 Показуємо екран успіху
             document.getElementById('recordingInterface').classList.add('hidden');
             document.getElementById('mainHeader').classList.add('hidden');
-
-            // Показуємо екран успіху з посиланням
-            const successView = document.getElementById('successView');
-            successView.classList.remove('hidden');
+            document.getElementById('successView').classList.remove('hidden');
             
             document.getElementById('shareLink').value = data.publicUrl;
             document.getElementById('watchBtn').href = data.publicUrl;
@@ -292,7 +338,11 @@
         const btn = document.querySelector('.btn-copy');
         const originalText = btn.innerText;
         btn.innerText = "Copied!";
-        setTimeout(() => btn.innerText = originalText, 2000);
+        btn.style.background = "#059669";
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.style.background = "var(--success)";
+        }, 2000);
     }
 
     init();
