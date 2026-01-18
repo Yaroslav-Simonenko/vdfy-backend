@@ -14,10 +14,13 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 
-// 🔥 ВАЖЛИВО: Ці заголовки МАЮТЬ бути на самому початку для роботи FFmpeg.wasm
+// 🔥 ВИПРАВЛЕННЯ: Вмикаємо ізоляцію ТІЛЬКИ для рекордера
+// Це полагодить відображення відео в Dashboard
 app.use((req, res, next) => {
-    res.header("Cross-Origin-Embedder-Policy", "require-corp");
-    res.header("Cross-Origin-Opener-Policy", "same-origin");
+    if (req.path.includes('/r/') || req.path.includes('recorder.html')) {
+        res.header("Cross-Origin-Embedder-Policy", "require-corp");
+        res.header("Cross-Origin-Opener-Policy", "same-origin");
+    }
     next();
 });
 
@@ -82,15 +85,11 @@ app.get('/s/:id', async (req, res) => {
 
 app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
 
-// 🔥 3. API: GET LINK INFO (Для рекордера)
+// 🔥 3. API: GET LINK INFO
 app.get('/api/link-info/:id', async (req, res) => {
     try {
-        console.log("🔍 Checking link info for ID:", req.params.id);
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
-        if (!doc.exists) {
-            console.log("❌ Link not found in Firestore");
-            return res.status(404).json({ error: "Not found" });
-        }
+        if (!doc.exists) return res.status(404).json({ error: "Not found" });
         res.json({ 
             email: doc.data().email, 
             formName: doc.data().formName 
@@ -135,14 +134,19 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         tempPath = req.file.path;
         compressedPath = tempPath + '_compressed.mp4';
 
-        // Серверне стиснення (якщо клієнт надіслав нестиснене)
-        await new Promise((resolve, reject) => {
-            ffmpeg(tempPath)
-                .outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac', '-b:a 128k'])
-                .save(compressedPath)
-                .on('end', resolve)
-                .on('error', reject);
-        });
+        // Якщо файл вже MP4 (стиснутий на клієнті), просто копіюємо
+        // Якщо WebM (не стиснутий), стискаємо FFmpeg
+        if (req.file.mimetype === 'video/mp4') {
+             fs.copyFileSync(tempPath, compressedPath);
+        } else {
+            await new Promise((resolve, reject) => {
+                ffmpeg(tempPath)
+                    .outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac', '-b:a 128k'])
+                    .save(compressedPath)
+                    .on('end', resolve)
+                    .on('error', reject);
+            });
+        }
 
         const transcription = await openai.audio.transcriptions.create({ 
             file: fs.createReadStream(compressedPath), 
@@ -177,7 +181,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// --- CLIENT & ADMIN APIs (Спрощено для читання) ---
+// --- CLIENT & ADMIN APIs ---
 
 app.post('/api/create-client', verifyToken, async (req, res) => {
     const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
@@ -195,19 +199,31 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
         const email = req.user.email.toLowerCase();
         const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: `users/${email.replace(/[@.]/g, '_')}/` }));
         const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4')).map(i => ({
-            key: i.Key, url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, uploadedAt: i.LastModified,
+            key: i.Key, 
+            url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, 
+            textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace('.mp4', '.txt')}`,
+            uploadedAt: i.LastModified,
             formName: i.Key.split('/').length > 3 ? decodeURIComponent(i.Key.split('/')[2]) : "General"
         }));
         res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
     } catch (e) { res.json({ videos: [] }); }
 });
 
+app.delete('/api/delete-video', verifyToken, async (req, res) => {
+    try {
+        const email = req.user.email.toLowerCase();
+        const videoKey = req.body.videoKey;
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey }));
+        await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
-        const transcript = await textRes.text();
         const gpt = await openai.chat.completions.create({
-            model: "gpt-4o-mini", messages: [{ role: "system", content: "Summarize interview." }, { role: "user", content: transcript }]
+            model: "gpt-4o-mini", messages: [{ role: "system", content: "Summarize interview." }, { role: "user", content: await textRes.text() }]
         });
         res.json({ analysis: gpt.choices[0].message.content });
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
