@@ -128,11 +128,10 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
-        
-let rawFormName = req.body.subfolder || "General";
-// Спроба декодувати (наприклад, перетворити "Untitled%20Form" -> "Untitled Form")
-try { rawFormName = decodeURIComponent(rawFormName); } catch (e) {}
-const formName = sanitize(rawFormName);
+        // ✅ НОВИЙ ВАРІАНТ (Виправляє назви):
+let rawName = req.body.subfolder || "General";
+try { rawName = decodeURIComponent(rawName); } catch(e) {} // <--- ОСЬ ЦЕЙ РЯДОК ЛІКУЄ ПРОБЛЕМУ
+const formName = sanitize(rawName);
         const emailFolder = ownerEmail.replace(/[@.]/g, '_');
         
         tempPath = req.file.path;
