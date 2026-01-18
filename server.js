@@ -128,7 +128,8 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
-        const formName = req.body.subfolder ? sanitize(req.body.subfolder) : "General"; 
+        const rawFormName = req.body.subfolder ? decodeURIComponent(req.body.subfolder) : "General";
+const formName = sanitize(rawFormName); 
         const emailFolder = ownerEmail.replace(/[@.]/g, '_');
         
         tempPath = req.file.path;
