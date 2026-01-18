@@ -2,116 +2,51 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VDFY Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        :root { 
-            --primary: #2563eb; --primary-hover: #1d4ed8;
-            --bg: #f3f4f6; --surface: #ffffff;
-            --text-main: #1f2937; --text-sec: #6b7280;
-            --border: #e5e7eb;
-        }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; color: var(--text-main); }
-        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; flex-shrink: 0; }
-        .logo { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 30px; }
-        .nav-item { padding: 12px 16px; margin-bottom: 4px; border-radius: 8px; cursor: pointer; color: var(--text-sec); display: flex; align-items: center; gap: 12px; transition: 0.2s; }
-        .nav-item.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
+        :root { --primary: #2563eb; --bg: #f3f4f6; --surface: #ffffff; --border: #e5e7eb; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; }
         .main { flex-grow: 1; padding: 40px; overflow-y: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
-        .user-profile { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--surface); border-radius: 50px; border: 1px solid var(--border); }
-        .user-img { width: 32px; height: 32px; border-radius: 50%; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; padding: 15px; }
+        video { width: 100%; border-radius: 8px; background: #000; }
+        .btn { padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: 600; margin-top: 10px; }
+        .btn-p { background: var(--primary); color: white; width: 100%; }
+        .folder { background: white; padding: 20px; border-radius: 12px; text-align: center; cursor: pointer; border: 1px solid var(--border); }
+        .hidden { display: none !important; }
         .view-section { display: none; }
         .view-section.active { display: block; }
-        
-        /* Grid Layouts */
-        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
-        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; }
-
-        /* VIDEO CARD */
-        .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; transition: 0.2s; }
-        .card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .card-preview { height: 180px; background: #000; position: relative; }
-        .card-preview video { width: 100%; height: 100%; object-fit: cover; }
-        .card-body { padding: 16px; }
-        .actions { display: flex; gap: 8px; margin-top: 16px; }
-
-        /* FOLDER CARD */
-        .folder-card { 
-            background: var(--surface); border-radius: 16px; border: 1px solid var(--border); 
-            padding: 24px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; text-align: center;
-        }
-        .folder-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: var(--primary); }
-        .folder-icon { font-size: 48px; margin-bottom: 12px; }
-        .folder-name { font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 4px; }
-        .folder-count { color: var(--text-sec); font-size: 13px; background: #f3f4f6; padding: 4px 10px; border-radius: 20px; }
-
-        /* Buttons & Utils */
-        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
-        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
-        .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
-        #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
-        .hidden { display: none !important; }
-        
-        /* Breadcrumbs */
-        .breadcrumb { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-        .back-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-sec); font-weight: 500; }
-        .back-btn:hover { color: var(--primary); }
     </style>
 </head>
 <body>
-
-    <div id="login-screen">
-        <div class="logo">🎥 VDFY</div>
-        <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
+    <div id="login-screen" style="position:fixed;inset:0;background:white;z-index:99;display:flex;align-items:center;justify-content:center;">
+        <button id="login-btn" class="btn btn-p" style="width:200px">Login with Google</button>
     </div>
 
     <div class="sidebar">
-        <div class="logo">🎥 VDFY</div>
-        
-        <div class="id-box">
-            <b>Linked Account:</b><br>
-            <span id="user-email">Loading...</span>
-        </div>
-
-        <div class="nav-item active" onclick="switchTab('videos')">📁 Recordings</div>
-        <div class="nav-item" onclick="switchTab('analytics')">📊 AI Analytics</div>
+        <h2>🎥 VDFY</h2>
+        <div id="user-email" style="font-size:12px; margin-bottom:20px; color:gray;"></div>
+        <div class="btn" onclick="switchTab('videos')">📁 Recordings</div>
+        <div class="btn" onclick="switchTab('analytics')">📊 AI Analytics</div>
         <div style="flex-grow:1"></div>
-        <div class="nav-item" style="color:#ef4444;" id="logout-btn">🚪 Sign Out</div>
+        <div class="btn" id="logout-btn" style="color:red">Sign Out</div>
     </div>
 
     <div class="main">
-        <div class="header">
-            <h1 id="page-title">My Folders</h1>
-            <div class="user-profile">
-                <img id="user-avatar" class="user-img" src="">
-                <span id="user-name">Loading...</span>
-            </div>
-        </div>
+        <h1 id="page-title">My Folders</h1>
+        <div id="folder-nav" class="hidden" onclick="renderFolders()" style="cursor:pointer;margin-bottom:20px;color:blue;">⬅ Back</div>
 
         <div id="tab-videos" class="view-section active">
-            <div id="loading" style="text-align: center; display: none;"><br>⏳ Loading...</div>
-            
-            <div id="folder-nav" class="breadcrumb hidden">
-                <div class="back-btn" onclick="showFoldersView()">
-                    <span>⬅ Back to Folders</span>
-                </div>
-                <span style="color: #e5e7eb;">|</span>
-                <span id="current-folder-title" style="font-weight: 700;">Form Name</span>
-            </div>
-
-            <div id="folders-container" class="folder-grid"></div>
-
-            <div id="videos-container" class="video-grid hidden"></div>
+            <div id="folders-container" class="grid"></div>
+            <div id="videos-container" class="grid hidden"></div>
         </div>
 
         <div id="tab-analytics" class="view-section">
-            <div id="ai-result-box" style="padding: 24px; background: white; border-radius: 16px; border: 1px solid var(--border); min-height: 100px;">
-                <h3 style="margin-top:0">🤖 AI Insight</h3>
-                <p id="ai-content">Select a recording to generate a summary.</p>
+            <div style="background:white;padding:20px;border-radius:12px;border:1px solid var(--border);">
+                <h3>🤖 AI Result</h3>
+                <p id="ai-content">Click 'Analyze' on a video to see results here.</p>
             </div>
         </div>
     </div>
@@ -120,7 +55,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇 ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -129,147 +63,74 @@
     messagingSenderId: "381929137400",
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
-
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-
-        // Глобальна змінна для зберігання згрупованих відео
         let groupedData = {};
 
-        const loginScreen = document.getElementById('login-screen');
-        const foldersContainer = document.getElementById('folders-container');
-        const videosContainer = document.getElementById('videos-container');
-        const folderNav = document.getElementById('folder-nav');
-        const pageTitle = document.getElementById('page-title');
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('user-email').innerText = user.email;
+                loadVideos();
+            } else {
+                document.getElementById('login-screen').classList.remove('hidden');
+            }
+        });
 
         document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         document.getElementById('logout-btn').onclick = () => signOut(auth);
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                loginScreen.classList.add('hidden');
-                document.getElementById('user-name').textContent = user.displayName;
-                document.getElementById('user-avatar').src = user.photoURL;
-                document.getElementById('user-email').textContent = user.email;
-                loadVideos(user);
-            } else {
-                loginScreen.classList.remove('hidden');
-            }
-        });
-
-        // --- ЛОГІКА ЗАВАНТАЖЕННЯ ---
-        async function loadVideos(user) {
-            document.getElementById('loading').style.display = 'block';
-            foldersContainer.innerHTML = "";
-            videosContainer.innerHTML = "";
-            
-            try {
-                const token = await user.getIdToken();
-                const res = await fetch('/api/my-videos', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await res.json();
-                
-                // 1. Групуємо відео по папках (formName)
-                groupedData = {};
-                data.videos.forEach(video => {
-                    // Якщо formName пустий, кидаємо в "General"
-                    const folderName = video.formName || "General";
-                    if (!groupedData[folderName]) {
-                        groupedData[folderName] = [];
-                    }
-                    groupedData[folderName].push(video);
-                });
-
-                // 2. Малюємо папки
-                renderFolders();
-
-            } catch (e) {
-                console.error(e);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
-        }
-
-        function renderFolders() {
-            foldersContainer.innerHTML = "";
-            const folderNames = Object.keys(groupedData);
-
-            if (folderNames.length === 0) {
-                foldersContainer.innerHTML = `<p style='text-align:center;width:100%;color:#666;'>No recordings found.</p>`;
-                return;
-            }
-
-            folderNames.forEach(name => {
-                const count = groupedData[name].length;
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder-card';
-                folderDiv.onclick = () => openFolder(name);
-                folderDiv.innerHTML = `
-                    <div class="folder-icon">📁</div>
-                    <div class="folder-name">${name}</div>
-                    <div class="folder-count">${count} video${count > 1 ? 's' : ''}</div>
-                `;
-                foldersContainer.appendChild(folderDiv);
-            });
-            
-            // Показуємо папки, ховаємо відео
-            showFoldersView();
-        }
-
-        window.openFolder = (folderName) => {
-            const videos = groupedData[folderName];
-            
-            // Заповнюємо сітку відео
-            videosContainer.innerHTML = videos.map(v => `
-                <div class="card">
-                    <div class="card-preview"><video controls src="${v.url}"></video></div>
-                    <div class="card-body">
-                        <div style="font-size:12px; color:gray; margin-bottom:10px;">
-                            ${new Date(v.uploadedAt).toLocaleString()}
-                        </div>
-                        <div class="actions">
-                            <a href="${v.url}" target="_blank" class="btn btn-outline">Open</a>
-                            <button class="btn btn-primary" onclick="analyzeAI('${v.textUrl}', this)">Analyze AI</button>
-                            <button class="btn btn-outline" style="color:#ef4444; border-color:#ef4444;" onclick="deleteVideo('${v.key}')">🗑</button>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            // UI перемикання
-            foldersContainer.classList.add('hidden');
-            videosContainer.classList.remove('hidden');
-            folderNav.classList.remove('hidden');
-            
-            document.getElementById('current-folder-title').innerText = folderName;
-            pageTitle.innerText = "Folder: " + folderName;
-        };
-
-        window.showFoldersView = () => {
-            foldersContainer.classList.remove('hidden');
-            videosContainer.classList.add('hidden');
-            folderNav.classList.add('hidden');
-            pageTitle.innerText = "My Folders";
-        };
-
-        // --- ІНШІ ФУНКЦІЇ (Delete, AI) ---
-        
-        window.deleteVideo = async (videoKey) => {
-            if (!confirm("Delete this recording?")) return;
+        async function loadVideos() {
             const token = await auth.currentUser.getIdToken();
-            await fetch('/api/delete-video', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ videoKey })
+            const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            
+            groupedData = {};
+            data.videos.forEach(v => {
+                const f = v.formName || "General";
+                if (!groupedData[f]) groupedData[f] = [];
+                groupedData[f].push(v);
             });
-            // Перезавантажуємо все
-            loadVideos(auth.currentUser);
+            renderFolders();
+        }
+
+        window.renderFolders = () => {
+            const container = document.getElementById('folders-container');
+            container.innerHTML = "";
+            document.getElementById('videos-container').classList.add('hidden');
+            container.classList.remove('hidden');
+            document.getElementById('folder-nav').classList.add('hidden');
+            
+            Object.keys(groupedData).forEach(name => {
+                container.innerHTML += `<div class="folder" onclick="openFolder('${name}')">📁 <h3>${name}</h3><p>${groupedData[name].length} videos</p></div>`;
+            });
+        };
+
+        window.openFolder = (name) => {
+            const container = document.getElementById('videos-container');
+            container.innerHTML = "";
+            document.getElementById('folders-container').classList.add('hidden');
+            container.classList.remove('hidden');
+            document.getElementById('folder-nav').classList.remove('hidden');
+
+            groupedData[name].forEach(v => {
+                container.innerHTML += `
+                    <div class="card">
+                        <video controls src="${v.url}"></video>
+                        <button class="btn" onclick="viewText('${v.textUrl}')">📄 Text</button>
+                        <button class="btn btn-p" onclick="analyzeAI('${v.textUrl}', this)">🤖 Analyze</button>
+                        <button class="btn" style="color:red" onclick="deleteVideo('${v.key}')">🗑</button>
+                    </div>`;
+            });
+        };
+
+        window.viewText = async (url) => {
+            const res = await fetch(url);
+            alert(await res.text());
         };
 
         window.analyzeAI = async (textUrl, btn) => {
-            if (!textUrl) return alert("Transcript missing (video might be processing)");
-            btn.disabled = true; btn.textContent = "Thinking...";
+            btn.innerText = "Analyzing...";
             const token = await auth.currentUser.getIdToken();
             const res = await fetch('/api/analyze-text', {
                 method: 'POST',
@@ -277,22 +138,25 @@
                 body: JSON.stringify({ textUrl })
             });
             const data = await res.json();
-            document.getElementById('ai-content').textContent = data.analysis || "Error generating summary.";
+            document.getElementById('ai-content').innerText = data.analysis;
             switchTab('analytics');
-            btn.disabled = false; btn.textContent = "Analyze AI";
+            btn.innerText = "🤖 Analyze";
         };
 
         window.switchTab = (tab) => {
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
-            
-            // Якщо перемикаємось на відео, скидаємо на вигляд папок
-            if(tab === 'videos') {
-                showFoldersView();
-            } else {
-                pageTitle.innerText = "AI Analytics";
-            }
+        };
+
+        window.deleteVideo = async (videoKey) => {
+            if (!confirm("Delete?")) return;
+            const token = await auth.currentUser.getIdToken();
+            await fetch('/api/delete-video', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ videoKey })
+            });
+            loadVideos();
         };
     </script>
 </body>
