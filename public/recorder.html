@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #6366F1; --danger: #ef4444; --bg: #F3F4F6; }
+        :root { --primary: #6366F1; --danger: #ef4444; --success: #10b981; --bg: #F3F4F6; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; box-sizing: border-box; }
         
         .container { 
@@ -53,6 +53,11 @@
         .btn-stop { background: #374151; color: white; }
         .btn-send { background: var(--primary); color: white; }
         .btn-sec { background: #f3f4f6; color: #374151; }
+        .btn-copy { background: var(--success); color: white; }
+
+        /* LINK BOX */
+        .link-box { display: flex; gap: 10px; margin-top: 10px; }
+        .link-input { flex: 1; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; color: #374151; background: #f9fafb; outline: none; }
 
         #loader { text-align: center; color: #6b7280; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
@@ -69,42 +74,58 @@
 </div>
 
 <div class="container" id="app">
-    <header>
+    <header id="mainHeader">
         <h2 id="formName">Video Response</h2>
         <p>Record your answer</p>
     </header>
 
-    <div class="tabs">
-        <button class="tab active" onclick="switchMode('video')">Video</button>
-        <button class="tab" onclick="switchMode('audio')">Audio Only</button>
+    <div id="successView" class="hidden">
+        <div style="font-size: 50px; margin-bottom: 10px;">🎉</div>
+        <h2>Upload Complete!</h2>
+        <p>Copy the link below and paste it into the form.</p>
+        
+        <div class="link-box">
+            <input type="text" id="shareLink" class="link-input" readonly>
+            <button class="btn-copy" onclick="copyLink()" style="width: auto; padding: 0 20px;">Copy</button>
+        </div>
+
+        <a id="watchBtn" href="#" target="_blank" style="display: block; margin-top: 20px; color: var(--primary); text-decoration: none; font-weight: 600;">👀 Check my video</a>
+        <button class="btn-sec" onclick="location.reload()" style="margin-top: 10px;">Record Another</button>
     </div>
 
-    <div class="media-wrapper">
-        <div class="timer" id="timer">00:00</div>
-        <video id="preview" autoplay muted playsinline></video>
-        
-        <div id="audioVisualizer" class="audio-visual">
-            <div class="mic-circle">🎤</div>
-            <div style="color:white; margin-top:10px; font-size:12px;">Microphone Active</div>
+    <div id="recordingInterface">
+        <div class="tabs">
+            <button class="tab active" onclick="switchMode('video')">Video</button>
+            <button class="tab" onclick="switchMode('audio')">Audio Only</button>
+        </div>
+
+        <div class="media-wrapper">
+            <div class="timer" id="timer">00:00</div>
+            <video id="preview" autoplay muted playsinline></video>
+            
+            <div id="audioVisualizer" class="audio-visual">
+                <div class="mic-circle">🎤</div>
+                <div style="color:white; margin-top:10px; font-size:12px;">Microphone Active</div>
+            </div>
+            
+            <audio id="audioReview" controls style="display:none; width:90%; position:absolute; bottom:20px; z-index:20;"></audio>
+        </div>
+
+        <div id="controls-init" class="controls">
+            <button class="btn-rec" onclick="startRec()">● Start Recording</button>
+        </div>
+
+        <div id="controls-active" class="controls hidden">
+            <button class="btn-stop" onclick="stopRec()">⏹ Stop</button>
+        </div>
+
+        <div id="controls-review" class="controls hidden">
+            <button class="btn-send" id="sendBtn" onclick="processAndUpload()">🚀 Send Response</button>
+            <button class="btn-sec" onclick="location.reload()">🔄 Retake</button>
         </div>
         
-        <audio id="audioReview" controls style="display:none; width:90%; position:absolute; bottom:20px; z-index:20;"></audio>
+        <div id="status"></div>
     </div>
-
-    <div id="controls-init" class="controls">
-        <button class="btn-rec" onclick="startRec()">● Start Recording</button>
-    </div>
-
-    <div id="controls-active" class="controls hidden">
-        <button class="btn-stop" onclick="stopRec()">⏹ Stop</button>
-    </div>
-
-    <div id="controls-review" class="controls hidden">
-        <button class="btn-send" id="sendBtn" onclick="processAndUpload()">🚀 Send Response</button>
-        <button class="btn-sec" onclick="location.reload()">🔄 Retake</button>
-    </div>
-    
-    <div id="status"></div>
 </div>
 
 <script>
@@ -175,7 +196,7 @@
         
         document.getElementById('controls-init').classList.add('hidden');
         document.getElementById('controls-active').classList.remove('hidden');
-        document.querySelectorAll('.tab').forEach(t => t.disabled = true); // Lock tabs
+        document.querySelectorAll('.tab').forEach(t => t.disabled = true);
         
         if (currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
 
@@ -222,8 +243,6 @@
             const webmBlob = new Blob(chunks, { type: 'video/webm' });
             ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
             
-            // Якщо Відео -> стискаємо в H.264 MP4
-            // Якщо Аудіо -> конвертуємо в AAC MP4 (без відео доріжки), сервер прийме це як "відео" файл
             if (currentMode === 'video') {
                 await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
             } else {
@@ -243,15 +262,37 @@
             const uploadRes = await fetch('/api/upload-with-ai', { method: 'POST', body: fd });
             if (!uploadRes.ok) throw new Error("Server Error");
 
-            status.innerText = "✅ Successfully Sent!";
-            status.style.color = "#10b981";
-            document.getElementById('controls-review').classList.add('hidden');
+            // 🔥 ТУТ МИ ОТРИМУЄМО ПОСИЛАННЯ ВІД СЕРВЕРА
+            const data = await uploadRes.json();
+
+            // Ховаємо інтерфейс запису
+            document.getElementById('recordingInterface').classList.add('hidden');
+            document.getElementById('mainHeader').classList.add('hidden');
+
+            // Показуємо екран успіху з посиланням
+            const successView = document.getElementById('successView');
+            successView.classList.remove('hidden');
+            
+            document.getElementById('shareLink').value = data.publicUrl;
+            document.getElementById('watchBtn').href = data.publicUrl;
             
         } catch (e) {
             status.innerText = "❌ Error: " + e.message;
             status.style.color = "#ef4444";
             btn.disabled = false;
         }
+    }
+
+    function copyLink() {
+        const copyText = document.getElementById("shareLink");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value);
+        
+        const btn = document.querySelector('.btn-copy');
+        const originalText = btn.innerText;
+        btn.innerText = "Copied!";
+        setTimeout(() => btn.innerText = originalText, 2000);
     }
 
     init();
