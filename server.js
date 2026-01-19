@@ -14,15 +14,24 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 
-// 🔥 РОЗУМНЕ НАЛАШТУВАННЯ БЕЗПЕКИ
+// 1. Спеціальний вхід в адмінку (обходить усі кеші та захисти)
+app.get('/panel', (req, res) => {
+    res.removeHeader("Cross-Origin-Embedder-Policy");
+    res.removeHeader("Cross-Origin-Opener-Policy");
+    // Явно дозволяємо все
+    res.header("Access-Control-Allow-Origin", "*");
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// 2. Налаштування безпеки для інших файлів
 app.use((req, res, next) => {
-    // Вмикаємо ізоляцію ТІЛЬКИ для сторінок запису відео (бо там FFmpeg)
+    // Якщо це рекордер - вмикаємо захист (для FFmpeg)
     if (req.path.includes('/r/') || req.path.includes('recorder.html')) {
         res.header("Cross-Origin-Embedder-Policy", "require-corp");
         res.header("Cross-Origin-Opener-Policy", "same-origin");
-    } else {
-        // Для Адмінки та інших сторінок — ВИМИКАЄМО обмеження, 
-        // щоб працювали Tailwind, Alpine та Firebase з CDN
+    } 
+    // Якщо це будь-що інше - знімаємо захист
+    else {
         res.removeHeader("Cross-Origin-Embedder-Policy");
         res.removeHeader("Cross-Origin-Opener-Policy");
     }
