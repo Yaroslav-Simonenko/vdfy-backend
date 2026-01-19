@@ -3,104 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VDFY Admin Console</title>
+    <title>VDFY Admin - Debug Mode</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style> body { font-family: 'Inter', sans-serif; } </style>
-</head>
-<body class="bg-gray-50 text-gray-800" x-data="appData()">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
-    <div x-show="!user" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
+    <style>
+        body { font-family: sans-serif; }
+        #debug-console { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #fff0f0; color: #cc0000; z-index: 9999; padding: 20px; 
+            font-family: monospace; font-size: 16px; white-space: pre-wrap; display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="appData()">
+
+    <div id="debug-console"></div>
+
+    <div x-show="false" class="fixed inset-0 flex items-center justify-center bg-gray-100 text-gray-500" style="display: flex;">
+        <div id="loading-msg">Завантаження інтерфейсу...<br>(Якщо цей напис не зникає, значить Alpine.js не запустився)</div>
+    </div>
+
+    <div x-show="!user" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
         <div class="text-center">
             <h1 class="text-4xl font-bold text-indigo-600 mb-2">VDFY Admin</h1>
-            <p id="error-msg" class="text-red-500 mb-4 text-sm font-mono hidden"></p>
-            <button @click="login" class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 transition">
-                Sign in with Google
+            <p class="text-gray-500 mb-6">Діагностична версія</p>
+            <button @click="login" class="bg-indigo-600 text-white px-6 py-3 rounded font-bold shadow hover:bg-indigo-700">
+                Увійти через Google
             </button>
         </div>
     </div>
 
-    <div x-show="user" class="flex h-screen overflow-hidden" style="display: none;">
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-10">
-            <div class="h-16 flex items-center px-6 border-b border-gray-100 text-2xl font-bold text-indigo-600">VDFY</div>
+    <div x-show="user" style="display: none;" class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-white border-r flex flex-col">
+            <div class="h-16 flex items-center px-6 font-bold text-indigo-600 text-2xl">VDFY</div>
             <nav class="flex-1 px-3 py-4 space-y-1">
                 <template x-for="item in navItems" :key="item.id">
-                    <a href="#" @click.prevent="currentTab = item.id" :class="currentTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                        <span x-html="item.icon" class="w-5 h-5 mr-3"></span>
+                    <a href="#" @click.prevent="currentTab = item.id" :class="currentTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'" class="flex items-center px-3 py-2 rounded">
                         <span x-text="item.label"></span>
                     </a>
                 </template>
             </nav>
-            <div class="p-4 border-t border-gray-100">
-                <p class="text-sm font-medium text-gray-700 truncate" x-text="user?.email"></p>
-                <button @click="logout" class="text-xs text-red-500 mt-1">Sign Out</button>
+            <div class="p-4 border-t">
+                <p x-text="user?.email" class="text-sm font-bold"></p>
+                <button @click="logout" class="text-red-500 text-xs">Вийти</button>
             </div>
         </aside>
 
-        <main class="flex-1 overflow-y-auto bg-gray-50 p-8">
+        <main class="flex-1 p-8 overflow-y-auto">
+            <h1 class="text-2xl font-bold mb-4" x-text="navItems.find(i=>i.id===currentTab).label"></h1>
+            
             <div x-show="currentTab === 'dashboard'">
-                <h2 class="text-2xl font-bold mb-6">Overview</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <p class="text-gray-500 text-sm">Total Videos</p>
-                        <h3 class="text-3xl font-bold" x-text="stats.totalVideos">0</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-                        <p class="text-gray-500 text-sm">Active Forms</p>
-                        <h3 class="text-3xl font-bold" x-text="stats.activeForms">0</h3>
-                    </div>
+                <div class="bg-white p-6 rounded shadow">
+                    <h3 class="text-xl">Відео: <span x-text="stats.totalVideos"></span></h3>
                 </div>
             </div>
 
             <div x-show="currentTab === 'media'">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Media Library</h2>
-                    <button x-show="viewMode === 'videos'" @click="viewMode = 'folders'" class="text-indigo-600">← Back</button>
-                </div>
-                <div x-show="viewMode === 'folders'" class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <template x-for="(videos, folderName) in groupedVideos" :key="folderName">
-                        <div @click="openFolder(folderName)" class="bg-white p-6 rounded-xl border hover:shadow-md cursor-pointer text-center">
-                            <div class="text-4xl mb-2">📁</div>
-                            <h3 class="font-bold" x-text="folderName"></h3>
-                            <span class="text-xs text-gray-400" x-text="videos.length + ' videos'"></span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <template x-for="(videos, folder) in groupedVideos" :key="folder">
+                        <div class="bg-white p-4 rounded shadow border cursor-pointer" @click="alert('Folder: ' + folder)">
+                            <div class="text-2xl">📁</div>
+                            <div x-text="folder"></div>
+                            <div class="text-xs text-gray-500" x-text="videos.length + ' файлів'"></div>
                         </div>
                     </template>
                 </div>
-                <div x-show="viewMode === 'videos'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <template x-for="video in currentFolderVideos" :key="video.key">
-                        <div class="bg-white rounded-xl border overflow-hidden shadow-sm">
-                            <video controls :src="video.url" class="w-full h-40 bg-black object-cover"></video>
-                            <div class="p-3">
-                                <p class="text-xs text-gray-400 mb-2" x-text="new Date(video.uploadedAt).toLocaleString()"></p>
-                                <div class="flex gap-2">
-                                    <button @click="viewText(video.textUrl)" class="flex-1 py-1 text-sm border rounded">Text</button>
-                                    <button @click="analyzeSingle(video.textUrl)" class="flex-1 py-1 text-sm bg-indigo-600 text-white rounded">AI</button>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-            
-            <div x-show="currentTab === 'ai'">
-                <h2 class="text-2xl font-bold">AI Analyst</h2>
-                <div class="bg-white p-6 rounded-xl border"><p>AI tools coming soon.</p></div>
-            </div>
-            <div x-show="currentTab === 'billing'">
-                <h2 class="text-2xl font-bold">Billing</h2>
-                <div class="bg-white p-6 rounded-xl border"><p>Manage subscription.</p></div>
             </div>
         </main>
     </div>
+
+    <script>
+        // Глобальний перехоплювач помилок
+        window.onerror = function(msg, url, line, col, error) {
+            const debugBox = document.getElementById('debug-console');
+            debugBox.style.display = 'block';
+            debugBox.innerHTML += `🔴 ПОМИЛКА:\n${msg}\nLine: ${line}\n\n`;
+            document.getElementById('loading-msg').style.display = 'none';
+        };
+    </script>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // ==========================================
-        // 👇👇👇 ТУТ ВСТАВ СВІЙ КОНФІГ 👇👇👇
-        // ==========================================
+        // 👇👇👇 ТУТ УВАЖНО ВСТАВ СВОЇ КЛЮЧІ 👇👇👇
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -110,43 +98,42 @@
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
 
-        // ==========================================
-
-        // Перевірка на помилки
-        if (firebaseConfig.apiKey === "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4" || !firebaseConfig.apiKey) {
-            document.getElementById('error-msg').innerText = "❌ ПОМИЛКА: Ти не вставив Firebase Config у код!";
-            document.getElementById('error-msg').classList.remove('hidden');
-            throw new Error("No API Key");
-        }
+        // 👆👆👆 ПЕРЕВІР, ЩОБ НЕ БУЛО ЗАЙВИХ КОМ (,) АБО ДУЖОК
 
         let app, auth, provider;
+
         try {
+            // Перевірка, чи замінив користувач ключі
+            if (firebaseConfig.apiKey.includes("AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4")) {
+                throw new Error("Ти забув вставити ключі Firebase у код! Знайди рядок 85.");
+            }
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             provider = new GoogleAuthProvider();
-        } catch(e) {
-            alert("Помилка конфігурації: " + e.message);
+        } catch (e) {
+            throw e; // Передаємо помилку на екран
         }
 
         document.addEventListener('alpine:init', () => {
             Alpine.data('appData', () => ({
                 user: null,
                 currentTab: 'dashboard',
-                viewMode: 'folders',
                 groupedVideos: {},
-                currentFolderVideos: [],
-                stats: { totalVideos: 0, activeForms: 0 },
+                stats: { totalVideos: 0 },
                 navItems: [
-                    { id: 'dashboard', label: 'Dashboard', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>' },
-                    { id: 'media', label: 'Media Library', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>' },
-                    { id: 'ai', label: 'AI Analyst', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>' },
-                    { id: 'billing', label: 'Billing', icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>' }
+                    { id: 'dashboard', label: 'Dashboard' },
+                    { id: 'media', label: 'Media Library' },
+                    { id: 'ai', label: 'AI Analyst' },
+                    { id: 'billing', label: 'Billing' }
                 ],
                 init() {
-                    onAuthStateChanged(auth, u => {
-                        this.user = u;
-                        if(u) this.loadData();
-                    });
+                    console.log("Alpine init");
+                    if(auth) {
+                        onAuthStateChanged(auth, u => {
+                            this.user = u;
+                            if(u) this.loadData();
+                        });
+                    }
                 },
                 login() { signInWithPopup(auth, provider); },
                 logout() { signOut(auth); },
@@ -155,7 +142,6 @@
                     try {
                         const token = await this.user.getIdToken();
                         const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
-                        if(!res.ok) throw new Error("API Error");
                         const data = await res.json();
                         
                         this.groupedVideos = {};
@@ -167,21 +153,8 @@
                             total++;
                         });
                         this.stats.totalVideos = total;
-                        this.stats.activeForms = Object.keys(this.groupedVideos).length;
                     } catch (e) { console.error(e); }
-                },
-                openFolder(name) {
-                    this.currentFolderVideos = this.groupedVideos[name];
-                    this.viewMode = 'videos';
-                },
-                async viewText(url) {
-                    try {
-                        const res = await fetch(url);
-                        if (!res.ok) throw new Error();
-                        alert("📝 Transcript:\n\n" + await res.text());
-                    } catch(e) { alert("Transcript not found."); }
-                },
-                analyzeSingle(url) { alert("AI Feature in development."); }
+                }
             }));
         });
     </script>
