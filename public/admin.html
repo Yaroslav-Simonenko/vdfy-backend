@@ -183,54 +183,75 @@
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
+
+       // Ініціалізуємо Firebase (з перевіркою помилок)
+       let app, auth, provider;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            provider = new GoogleAuthProvider();
+            console.log("Firebase initialized successfully");
+        } catch (e) {
+            console.error("🔥 CRITICAL FIREBASE ERROR:", e);
+            alert("Помилка підключення до бази даних. Перевір консоль (F12).");
+        }
 
         document.addEventListener('alpine:init', () => {
             Alpine.data('appData', () => ({
                 user: null,
                 currentTab: 'dashboard',
-                viewMode: 'folders', // 'folders' or 'videos'
+                viewMode: 'folders', 
                 groupedVideos: {},
                 currentFolderVideos: [],
                 stats: { totalVideos: 0, activeForms: 0 },
                 
                 navItems: [
-                    { id: 'dashboard', label: 'Dashboard', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>' },
-                    { id: 'media', label: 'Media Library', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>' },
-                    { id: 'ai', label: 'AI Analyst', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>' },
-                    { id: 'billing', label: 'Billing', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>' },
+                    { id: 'dashboard', label: 'Dashboard', icon: '<svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>' },
+                    { id: 'media', label: 'Media Library', icon: '<svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>' },
+                    { id: 'ai', label: 'AI Analyst', icon: '<svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>' },
+                    { id: 'billing', label: 'Billing', icon: '<svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>' },
                 ],
 
                 init() {
-                    onAuthStateChanged(auth, (u) => {
-                        this.user = u;
-                        if (u) this.loadData();
-                    });
+                    // Чекаємо, поки Firebase перевірить юзера
+                    if (auth) {
+                        onAuthStateChanged(auth, (u) => {
+                            this.user = u;
+                            if (u) {
+                                console.log("User logged in:", u.email);
+                                this.loadData();
+                            }
+                        });
+                    }
                 },
 
-                login() { signInWithPopup(auth, provider); },
-                logout() { signOut(auth); },
+                login() { if(auth) signInWithPopup(auth, provider); },
+                logout() { if(auth) signOut(auth); },
 
                 async loadData() {
-                    const token = await this.user.getIdToken();
-                    const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
-                    const data = await res.json();
+                    if (!this.user) return;
+                    try {
+                        const token = await this.user.getIdToken();
+                        const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
+                        
+                        if (!res.ok) throw new Error("Server Error");
+                        
+                        const data = await res.json();
 
-                    // Group Data
-                    this.groupedVideos = {};
-                    let total = 0;
-                    data.videos.forEach(v => {
-                        const f = v.formName || "General";
-                        if (!this.groupedVideos[f]) this.groupedVideos[f] = [];
-                        this.groupedVideos[f].push(v);
-                        total++;
-                    });
+                        this.groupedVideos = {};
+                        let total = 0;
+                        data.videos.forEach(v => {
+                            const f = v.formName || "General";
+                            if (!this.groupedVideos[f]) this.groupedVideos[f] = [];
+                            this.groupedVideos[f].push(v);
+                            total++;
+                        });
 
-                    // Update Stats
-                    this.stats.totalVideos = total;
-                    this.stats.activeForms = Object.keys(this.groupedVideos).length;
+                        this.stats.totalVideos = total;
+                        this.stats.activeForms = Object.keys(this.groupedVideos).length;
+                    } catch (e) {
+                        console.error("Error loading data:", e);
+                    }
                 },
 
                 openFolder(name) {
@@ -241,16 +262,18 @@
                 async viewText(url) {
                     try {
                         const res = await fetch(url);
-                        alert(await res.text()); // In future: show in nice modal
-                    } catch(e) { alert("Transcript not ready"); }
+                        if (!res.ok) throw new Error();
+                        const text = await res.text();
+                        alert("📝 Transcript:\n\n" + text);
+                    } catch(e) { alert("Transcript not found."); }
                 },
 
                 async analyzeSingle(url) {
-                    alert("Sending to AI...");
-                    // Implement AI Call here
+                    alert("AI Analysis started...");
                 }
             }));
         });
+    </script>
     </script>
 </body>
 </html>
