@@ -102,17 +102,18 @@
         // 👇👇👇 ТУТ ВСТАВ СВІЙ КОНФІГ 👇👇👇
         // ==========================================
         const firebaseConfig = {
-            apiKey: "ВСТАВ_СЮДИ",
-            authDomain: "ВСТАВ_СЮДИ",
-            projectId: "ВСТАВ_СЮДИ",
-            storageBucket: "ВСТАВ_СЮДИ",
-            messagingSenderId: "ВСТАВ_СЮДИ",
-            appId: "ВСТАВ_СЮДИ"
-        };
+    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
+    authDomain: "vdfy-auth-system.firebaseapp.com",
+    projectId: "vdfy-auth-system",
+    storageBucket: "vdfy-auth-system.firebasestorage.app",
+    messagingSenderId: "381929137400",
+    appId: "1:381929137400:web:661c3b07907e639fa5070d"
+  };
+
         // ==========================================
 
         // Перевірка на помилки
-        if (firebaseConfig.apiKey === "ВСТАВ_СЮДИ" || !firebaseConfig.apiKey) {
+        if (firebaseConfig.apiKey === "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4" || !firebaseConfig.apiKey) {
             document.getElementById('error-msg').innerText = "❌ ПОМИЛКА: Ти не вставив Firebase Config у код!";
             document.getElementById('error-msg').classList.remove('hidden');
             throw new Error("No API Key");
