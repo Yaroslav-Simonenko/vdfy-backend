@@ -14,33 +14,12 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 
-// 1. Спеціальний вхід в адмінку (обходить усі кеші та захисти)
-app.get('/panel', (req, res) => {
-    res.removeHeader("Cross-Origin-Embedder-Policy");
-    res.removeHeader("Cross-Origin-Opener-Policy");
-    // Явно дозволяємо все
-    res.header("Access-Control-Allow-Origin", "*");
-    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// 2. Налаштування безпеки для інших файлів
-app.use((req, res, next) => {
-    // Якщо це рекордер - вмикаємо захист (для FFmpeg)
-    if (req.path.includes('/r/') || req.path.includes('recorder.html')) {
-        res.header("Cross-Origin-Embedder-Policy", "require-corp");
-        res.header("Cross-Origin-Opener-Policy", "same-origin");
-    } 
-    // Якщо це будь-що інше - знімаємо захист
-    else {
-        res.removeHeader("Cross-Origin-Embedder-Policy");
-        res.removeHeader("Cross-Origin-Opener-Policy");
-    }
-    next();
-});
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
-app.use(express.static('public'));
+
+// 🔥 ВАЖЛИВО: Статичні файли (але без index.html за замовчуванням, щоб ми керували роутами)
+app.use(express.static('public', { index: false }));
 
 // --- CONFIG ---
 let serviceAccount;
@@ -63,8 +42,6 @@ const upload = multer({ dest: 'uploads/' });
 // --- HELPERS ---
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 const generateShortId = () => Math.random().toString(36).substring(2, 7);
-
-// --- MIDDLEWARE ---
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -75,17 +52,30 @@ const verifyToken = async (req, res, next) => {
     } catch (e) { return res.status(403).json({ error: 'Forbidden' }); }
 };
 
-// --- ROUTES ---
+// --- 🔥🔥🔥 ГОЛОВНІ РОУТИ (ВИПРАВЛЕНО) 🔥🔥🔥 ---
 
 app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
-app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 
-// 🔥 1. CLEAN RECORDER LINK
+// 1. АДМІНКА (ГАРАНТОВАНО БЕЗ ЗАХИСТУ)
+// Заходити сюди: /admin (без .html)
+app.get('/admin', (req, res) => {
+    res.removeHeader("Cross-Origin-Embedder-Policy");
+    res.removeHeader("Cross-Origin-Opener-Policy");
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// 2. РЕКОРДЕР (ГАРАНТОВАНО З ЗАХИСТОМ ДЛЯ FFMPEG)
 app.get('/r/:id', (req, res) => {
+    // Вмикаємо ізоляцію ТІЛЬКИ тут
+    res.header("Cross-Origin-Embedder-Policy", "require-corp");
+    res.header("Cross-Origin-Opener-Policy", "same-origin");
     res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
-// 🔥 2. REDIRECTS
+// 3. ПЕРЕГЛЯД ВІДЕО
+app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
+
+// 4. РЕДІРЕКТИ
 app.get('/s/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -96,21 +86,16 @@ app.get('/s/:id', async (req, res) => {
     } catch (e) { res.status(500).send("Server Error"); }
 });
 
-app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
+// --- API ROUTES (Ті самі, що й були) ---
 
-// 🔥 3. API: GET LINK INFO
 app.get('/api/link-info/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
         if (!doc.exists) return res.status(404).json({ error: "Not found" });
-        res.json({ 
-            email: doc.data().email, 
-            formName: doc.data().formName 
-        });
+        res.json({ email: doc.data().email, formName: doc.data().formName });
     } catch (e) { res.status(500).json({ error: "Server error" }); }
 });
 
-// 🔥 4. API: SHORTEN
 app.post('/api/shorten', async (req, res) => {
     try {
         const { type, email, formName, longUrl } = req.body;
@@ -119,39 +104,30 @@ app.post('/api/shorten', async (req, res) => {
 
         if (type === 'recorder') {
             await db.collection('shortLinks').doc(shortId).set({
-                type: 'recorder',
-                email: email,       
-                formName: formName || "General", 
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
+                type: 'recorder', email: email, formName: formName || "General", createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
             return res.json({ shortUrl: `${host}/r/${shortId}` });
         } else {
-            await db.collection('shortLinks').doc(shortId).set({
-                url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            await db.collection('shortLinks').doc(shortId).set({ url: longUrl, type: 'general', createdAt: admin.firestore.FieldValue.serverTimestamp() });
             return res.json({ shortUrl: `${host}/s/${shortId}` });
         }
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 🔥 5. API: UPLOAD (З підтримкою AI)
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
     try {
         if (!req.file) return res.status(400).json({ error: "No file" });
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
-        // ✅ НОВИЙ ВАРІАНТ (Виправляє назви):
-let rawName = req.body.subfolder || "General";
-try { rawName = decodeURIComponent(rawName); } catch(e) {} // <--- ОСЬ ЦЕЙ РЯДОК ЛІКУЄ ПРОБЛЕМУ
-const formName = sanitize(rawName);
+        let rawName = req.body.subfolder || "General";
+        try { rawName = decodeURIComponent(rawName); } catch(e) {}
+        const formName = sanitize(rawName);
         const emailFolder = ownerEmail.replace(/[@.]/g, '_');
         
         tempPath = req.file.path;
         compressedPath = tempPath + '_compressed.mp4';
 
-        // Якщо файл вже MP4 (стиснутий на клієнті), просто копіюємо
-        // Якщо WebM (не стиснутий), стискаємо FFmpeg
         if (req.file.mimetype === 'video/mp4') {
              fs.copyFileSync(tempPath, compressedPath);
         } else {
@@ -165,9 +141,7 @@ const formName = sanitize(rawName);
         }
 
         const transcription = await openai.audio.transcriptions.create({ 
-            file: fs.createReadStream(compressedPath), 
-            model: "whisper-1",
-            prompt: "Transcribe mixed languages. Привіт. Hello. English and Ukrainian combined. Дякую." 
+            file: fs.createReadStream(compressedPath), model: "whisper-1", prompt: "Transcribe mixed languages." 
         });
 
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
@@ -178,12 +152,7 @@ const formName = sanitize(rawName);
 
         const shortId = generateShortId();
         await db.collection('shortLinks').doc(shortId).set({
-            url: longUrl,
-            r2Key: r2Key,
-            type: 'video',
-            email: ownerEmail,
-            transcription: transcription.text,
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
+            url: longUrl, r2Key: r2Key, type: 'video', email: ownerEmail, transcription: transcription.text, createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -197,29 +166,13 @@ const formName = sanitize(rawName);
     }
 });
 
-// --- CLIENT & ADMIN APIs ---
-
-app.post('/api/create-client', verifyToken, async (req, res) => {
-    const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
-    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).json({ error: "Access Denied" });
-    try {
-        const { email } = req.body;
-        const password = Math.random().toString(36).substring(2, 12);
-        await admin.auth().createUser({ email, password, emailVerified: true });
-        res.json({ success: true, credentials: { email, password } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const email = req.user.email.toLowerCase();
         const data = await s3.send(new ListObjectsV2Command({ Bucket: process.env.R2_BUCKET_NAME, Prefix: `users/${email.replace(/[@.]/g, '_')}/` }));
         const videos = (data.Contents || []).filter(i => i.Key.endsWith('.mp4')).map(i => ({
-            key: i.Key, 
-            url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, 
-            textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace('.mp4', '.txt')}`,
-            uploadedAt: i.LastModified,
-            formName: i.Key.split('/').length > 3 ? decodeURIComponent(i.Key.split('/')[2]) : "General"
+            key: i.Key, url: `${process.env.R2_PUBLIC_URL}/${i.Key}`, textUrl: `${process.env.R2_PUBLIC_URL}/${i.Key.replace('.mp4', '.txt')}`,
+            uploadedAt: i.LastModified, formName: i.Key.split('/').length > 3 ? decodeURIComponent(i.Key.split('/')[2]) : "General"
         }));
         res.json({ videos: videos.sort((a,b) => b.uploadedAt - a.uploadedAt) });
     } catch (e) { res.json({ videos: [] }); }
@@ -227,7 +180,6 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
 
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     try {
-        const email = req.user.email.toLowerCase();
         const videoKey = req.body.videoKey;
         await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey }));
         await s3.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: videoKey.replace(/\.(mp4|webm)$/, '.txt') })).catch(()=>{});
