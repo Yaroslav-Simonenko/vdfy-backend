@@ -102,17 +102,7 @@
 
         let app, auth, provider;
 
-        try {
-            // Перевірка, чи замінив користувач ключі
-            if (firebaseConfig.apiKey.includes("AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4")) {
-                throw new Error("Ти забув вставити ключі Firebase у код! Знайди рядок 85.");
-            }
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            provider = new GoogleAuthProvider();
-        } catch (e) {
-            throw e; // Передаємо помилку на екран
-        }
+        
 
         document.addEventListener('alpine:init', () => {
             Alpine.data('appData', () => ({
