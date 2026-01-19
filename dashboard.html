@@ -3,177 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VDFY Admin Console</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>VDFY Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #2563eb; --primary-hover: #1d4ed8;
+            --bg: #f3f4f6; --surface: #ffffff;
+            --text-main: #1f2937; --text-sec: #6b7280;
+            --border: #e5e7eb;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; color: var(--text-main); }
+        .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; flex-shrink: 0; }
+        .logo { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 30px; }
+        .nav-item { padding: 12px 16px; margin-bottom: 4px; border-radius: 8px; cursor: pointer; color: var(--text-sec); display: flex; align-items: center; gap: 12px; transition: 0.2s; }
+        .nav-item.active { background: #eff6ff; color: var(--primary); font-weight: 600; }
+        .main { flex-grow: 1; padding: 40px; overflow-y: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .user-profile { display: flex; align-items: center; gap: 12px; padding: 6px 12px; background: var(--surface); border-radius: 50px; border: 1px solid var(--border); }
+        .user-img { width: 32px; height: 32px; border-radius: 50%; }
+        .view-section { display: none; }
+        .view-section.active { display: block; }
+        
+        /* Grid Layouts */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+        .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; }
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style> body { font-family: 'Inter', sans-serif; } </style>
+        /* VIDEO CARD */
+        .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; transition: 0.2s; }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .card-preview { height: 180px; background: #000; position: relative; }
+        .card-preview video { width: 100%; height: 100%; object-fit: cover; }
+        .card-body { padding: 16px; }
+        .actions { display: flex; gap: 8px; margin-top: 16px; }
+
+        /* FOLDER CARD */
+        .folder-card { 
+            background: var(--surface); border-radius: 16px; border: 1px solid var(--border); 
+            padding: 24px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; text-align: center;
+        }
+        .folder-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: var(--primary); }
+        .folder-icon { font-size: 48px; margin-bottom: 12px; }
+        .folder-name { font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 4px; }
+        .folder-count { color: var(--text-sec); font-size: 13px; background: #f3f4f6; padding: 4px 10px; border-radius: 20px; }
+
+        /* Buttons & Utils */
+        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
+        #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
+        .hidden { display: none !important; }
+        
+        /* Breadcrumbs */
+        .breadcrumb { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+        .back-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-sec); font-weight: 500; }
+        .back-btn:hover { color: var(--primary); }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-800" x-data="appData()">
+<body>
 
-    <div x-show="!user" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
-        <div class="text-center">
-            <h1 class="text-4xl font-bold text-indigo-600 mb-2">VDFY</h1>
-            <p class="text-gray-500 mb-6">Video Forms & AI Analytics</p>
-            <button @click="login" class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition shadow-lg">
-                Sign in with Google
-            </button>
-        </div>
+    <div id="login-screen">
+        <div class="logo">🎥 VDFY</div>
+        <button id="login-btn" class="btn btn-primary">Sign in with Google</button>
     </div>
 
-    <div x-show="user" class="flex h-screen overflow-hidden" style="display: none;">
+    <div class="sidebar">
+        <div class="logo">🎥 VDFY</div>
         
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col z-10">
-            <div class="h-16 flex items-center px-6 border-b border-gray-100">
-                <span class="text-2xl font-bold text-indigo-600">VDFY</span>
-                <span class="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">PRO</span>
+        <div class="id-box">
+            <b>Linked Account:</b><br>
+            <span id="user-email">Loading...</span>
+        </div>
+
+        <div class="nav-item active" onclick="switchTab('videos')">📁 Recordings</div>
+        <div class="nav-item" onclick="switchTab('analytics')">📊 AI Analytics</div>
+        <div style="flex-grow:1"></div>
+        <div class="nav-item" style="color:#ef4444;" id="logout-btn">🚪 Sign Out</div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <h1 id="page-title">My Folders</h1>
+            <div class="user-profile">
+                <img id="user-avatar" class="user-img" src="">
+                <span id="user-name">Loading...</span>
             </div>
+        </div>
 
-            <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                <template x-for="item in navItems" :key="item.id">
-                    <a href="#" @click.prevent="currentTab = item.id"
-                       :class="currentTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'"
-                       class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors">
-                        <span x-html="item.icon" class="w-5 h-5 mr-3"></span>
-                        <span x-text="item.label"></span>
-                    </a>
-                </template>
-            </nav>
-
-            <div class="p-4 border-t border-gray-100">
-                <div class="flex items-center mb-3">
-                    <img :src="user?.photoURL" class="h-8 w-8 rounded-full border border-gray-200">
-                    <div class="ml-3 overflow-hidden">
-                        <p class="text-sm font-medium text-gray-700 truncate" x-text="user?.displayName"></p>
-                        <p class="text-xs text-gray-500 truncate" x-text="user?.email"></p>
-                    </div>
-                </div>
-                <button @click="logout" class="w-full text-xs text-red-500 hover:text-red-700 text-left pl-1">Sign Out</button>
-            </div>
-        </aside>
-
-        <main class="flex-1 overflow-y-auto bg-gray-50 p-8">
+        <div id="tab-videos" class="view-section active">
+            <div id="loading" style="text-align: center; display: none;"><br>⏳ Loading...</div>
             
-            <div x-show="currentTab === 'dashboard'">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Dashboard Overview</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Total Responses</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.totalVideos">0</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">Active Forms</p>
-                        <h3 class="text-3xl font-bold text-gray-800 mt-2" x-text="stats.activeForms">0</h3>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <p class="text-sm text-gray-500 font-medium">AI Credits</p>
-                        <h3 class="text-3xl font-bold text-indigo-600 mt-2">150 <span class="text-sm text-gray-400 font-normal">/ 500</span></h3>
-                    </div>
+            <div id="folder-nav" class="breadcrumb hidden">
+                <div class="back-btn" onclick="showFoldersView()">
+                    <span>⬅ Back to Folders</span>
                 </div>
-
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-64 flex items-center justify-center">
-                    <p class="text-gray-400">Activity Chart Area (Placeholder)</p>
-                </div>
+                <span style="color: #e5e7eb;">|</span>
+                <span id="current-folder-title" style="font-weight: 700;">Form Name</span>
             </div>
 
-            <div x-show="currentTab === 'media'">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Media Library</h2>
-                    <button x-show="viewMode === 'videos'" @click="viewMode = 'folders'" class="text-indigo-600 font-medium hover:underline">← Back to Folders</button>
-                </div>
+            <div id="folders-container" class="folder-grid"></div>
 
-                <div x-show="viewMode === 'folders'" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    <template x-for="(videos, folderName) in groupedVideos" :key="folderName">
-                        <div @click="openFolder(folderName)" class="bg-white p-6 rounded-xl border border-gray-200 hover:shadow-md cursor-pointer transition flex flex-col items-center text-center">
-                            <div class="text-4xl mb-3">📁</div>
-                            <h3 class="font-semibold text-gray-800" x-text="folderName"></h3>
-                            <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full mt-2" x-text="videos.length + ' videos'"></span>
-                        </div>
-                    </template>
-                </div>
+            <div id="videos-container" class="video-grid hidden"></div>
+        </div>
 
-                <div x-show="viewMode === 'videos'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <template x-for="video in currentFolderVideos" :key="video.key">
-                        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                            <video controls :src="video.url" class="w-full h-48 bg-black object-cover"></video>
-                            <div class="p-4">
-                                <div class="text-xs text-gray-400 mb-2" x-text="new Date(video.uploadedAt).toLocaleString()"></div>
-                                <div class="flex gap-2">
-                                    <button @click="viewText(video.textUrl)" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded text-gray-600 hover:bg-gray-50">📄 Text</button>
-                                    <button @click="analyzeSingle(video.textUrl)" class="flex-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700">🤖 AI</button>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
+        <div id="tab-analytics" class="view-section">
+            <div id="ai-result-box" style="padding: 24px; background: white; border-radius: 16px; border: 1px solid var(--border); min-height: 100px;">
+                <h3 style="margin-top:0">🤖 AI Insight</h3>
+                <p id="ai-content">Select a recording to generate a summary.</p>
             </div>
-
-            <div x-show="currentTab === 'ai'">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">AI Researcher</h2>
-                
-                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm max-w-3xl">
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">1. Select Data Source (Form)</label>
-                        <select class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
-                            <option>Select a form...</option>
-                            <template x-for="(videos, folderName) in groupedVideos" :key="folderName">
-                                <option x-text="folderName + ' (' + videos.length + ' responses)'"></option>
-                            </template>
-                        </select>
-                    </div>
-
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium text-gray-700 mb-2">2. Select Report Type</label>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div class="border p-3 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition">
-                                <h4 class="font-semibold text-sm">📊 Basic Stats</h4>
-                                <p class="text-xs text-gray-500">Distribution of answers, common keywords.</p>
-                            </div>
-                            <div class="border p-3 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition">
-                                <h4 class="font-semibold text-sm">❤️ Sentiment Analysis</h4>
-                                <p class="text-xs text-gray-500">Emotional tone, positive vs negative.</p>
-                            </div>
-                            <div class="border p-3 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition">
-                                <h4 class="font-semibold text-sm">⚠️ Problem Detection</h4>
-                                <p class="text-xs text-gray-500">Find complaints and recurring issues.</p>
-                            </div>
-                            <div class="border p-3 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition">
-                                <h4 class="font-semibold text-sm">🔮 Strategic Insights</h4>
-                                <p class="text-xs text-gray-500">SWOT analysis & recommendations.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition">
-                        Generate Report (5 Credits)
-                    </button>
-                </div>
-            </div>
-
-            <div x-show="currentTab === 'billing'">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Billing & Plan</h2>
-                <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-8 text-white mb-6">
-                    <h3 class="text-lg font-semibold opacity-90">Current Plan</h3>
-                    <div class="text-4xl font-bold mt-2">Professional</div>
-                    <p class="mt-2 opacity-75">Renews on Feb 18, 2026</p>
-                </div>
-                <button class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium">Manage Subscription</button>
-            </div>
-
-        </main>
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 🔥🔥🔥 ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG 🔥🔥🔥
+        // 👇 ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -185,72 +132,168 @@
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
 
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('appData', () => ({
-                user: null,
-                currentTab: 'dashboard',
-                viewMode: 'folders', // 'folders' or 'videos'
-                groupedVideos: {},
-                currentFolderVideos: [],
-                stats: { totalVideos: 0, activeForms: 0 },
-                
-                navItems: [
-                    { id: 'dashboard', label: 'Dashboard', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>' },
-                    { id: 'media', label: 'Media Library', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>' },
-                    { id: 'ai', label: 'AI Analyst', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>' },
-                    { id: 'billing', label: 'Billing', icon: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>' },
-                ],
+        // Глобальна змінна для зберігання згрупованих відео
+        let groupedData = {};
 
-                init() {
-                    onAuthStateChanged(auth, (u) => {
-                        this.user = u;
-                        if (u) this.loadData();
-                    });
-                },
+        const loginScreen = document.getElementById('login-screen');
+        const foldersContainer = document.getElementById('folders-container');
+        const videosContainer = document.getElementById('videos-container');
+        const folderNav = document.getElementById('folder-nav');
+        const pageTitle = document.getElementById('page-title');
 
-                login() { signInWithPopup(auth, provider); },
-                logout() { signOut(auth); },
+        document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
+        document.getElementById('logout-btn').onclick = () => signOut(auth);
 
-                async loadData() {
-                    const token = await this.user.getIdToken();
-                    const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
-                    const data = await res.json();
-
-                    // Group Data
-                    this.groupedVideos = {};
-                    let total = 0;
-                    data.videos.forEach(v => {
-                        const f = v.formName || "General";
-                        if (!this.groupedVideos[f]) this.groupedVideos[f] = [];
-                        this.groupedVideos[f].push(v);
-                        total++;
-                    });
-
-                    // Update Stats
-                    this.stats.totalVideos = total;
-                    this.stats.activeForms = Object.keys(this.groupedVideos).length;
-                },
-
-                openFolder(name) {
-                    this.currentFolderVideos = this.groupedVideos[name];
-                    this.viewMode = 'videos';
-                },
-
-                async viewText(url) {
-                    try {
-                        const res = await fetch(url);
-                        alert(await res.text()); // In future: show in nice modal
-                    } catch(e) { alert("Transcript not ready"); }
-                },
-
-                async analyzeSingle(url) {
-                    alert("Sending to AI...");
-                    // Implement AI Call here
-                }
-            }));
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                loginScreen.classList.add('hidden');
+                document.getElementById('user-name').textContent = user.displayName;
+                document.getElementById('user-avatar').src = user.photoURL;
+                document.getElementById('user-email').textContent = user.email;
+                loadVideos(user);
+            } else {
+                loginScreen.classList.remove('hidden');
+            }
         });
+
+        // --- ЛОГІКА ЗАВАНТАЖЕННЯ ---
+        async function loadVideos(user) {
+            document.getElementById('loading').style.display = 'block';
+            foldersContainer.innerHTML = "";
+            videosContainer.innerHTML = "";
+            
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch('/api/my-videos', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                // 1. Групуємо відео по папках (formName)
+                groupedData = {};
+                data.videos.forEach(video => {
+                    // Якщо formName пустий, кидаємо в "General"
+                    const folderName = video.formName || "General";
+                    if (!groupedData[folderName]) {
+                        groupedData[folderName] = [];
+                    }
+                    groupedData[folderName].push(video);
+                });
+
+                // 2. Малюємо папки
+                renderFolders();
+
+            } catch (e) {
+                console.error(e);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderFolders() {
+            foldersContainer.innerHTML = "";
+            const folderNames = Object.keys(groupedData);
+
+            if (folderNames.length === 0) {
+                foldersContainer.innerHTML = `<p style='text-align:center;width:100%;color:#666;'>No recordings found.</p>`;
+                return;
+            }
+
+            folderNames.forEach(name => {
+                const count = groupedData[name].length;
+                const folderDiv = document.createElement('div');
+                folderDiv.className = 'folder-card';
+                folderDiv.onclick = () => openFolder(name);
+                folderDiv.innerHTML = `
+                    <div class="folder-icon">📁</div>
+                    <div class="folder-name">${name}</div>
+                    <div class="folder-count">${count} video${count > 1 ? 's' : ''}</div>
+                `;
+                foldersContainer.appendChild(folderDiv);
+            });
+            
+            // Показуємо папки, ховаємо відео
+            showFoldersView();
+        }
+
+        window.openFolder = (folderName) => {
+            const videos = groupedData[folderName];
+            
+            // Заповнюємо сітку відео
+            videosContainer.innerHTML = videos.map(v => `
+                <div class="card">
+                    <div class="card-preview"><video controls src="${v.url}"></video></div>
+                    <div class="card-body">
+                        <div style="font-size:12px; color:gray; margin-bottom:10px;">
+                            ${new Date(v.uploadedAt).toLocaleString()}
+                        </div>
+                        <div class="actions">
+                            <a href="${v.url}" target="_blank" class="btn btn-outline">Open</a>
+                            <button class="btn btn-primary" onclick="analyzeAI('${v.textUrl}', this)">Analyze AI</button>
+                            <button class="btn btn-outline" style="color:#ef4444; border-color:#ef4444;" onclick="deleteVideo('${v.key}')">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // UI перемикання
+            foldersContainer.classList.add('hidden');
+            videosContainer.classList.remove('hidden');
+            folderNav.classList.remove('hidden');
+            
+            document.getElementById('current-folder-title').innerText = folderName;
+            pageTitle.innerText = "Folder: " + folderName;
+        };
+
+        window.showFoldersView = () => {
+            foldersContainer.classList.remove('hidden');
+            videosContainer.classList.add('hidden');
+            folderNav.classList.add('hidden');
+            pageTitle.innerText = "My Folders";
+        };
+
+        // --- ІНШІ ФУНКЦІЇ (Delete, AI) ---
+        
+        window.deleteVideo = async (videoKey) => {
+            if (!confirm("Delete this recording?")) return;
+            const token = await auth.currentUser.getIdToken();
+            await fetch('/api/delete-video', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ videoKey })
+            });
+            // Перезавантажуємо все
+            loadVideos(auth.currentUser);
+        };
+
+        window.analyzeAI = async (textUrl, btn) => {
+            if (!textUrl) return alert("Transcript missing (video might be processing)");
+            btn.disabled = true; btn.textContent = "Thinking...";
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/analyze-text', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ textUrl })
+            });
+            const data = await res.json();
+            document.getElementById('ai-content').textContent = data.analysis || "Error generating summary.";
+            switchTab('analytics');
+            btn.disabled = false; btn.textContent = "Analyze AI";
+        };
+
+        window.switchTab = (tab) => {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            
+            // Якщо перемикаємось на відео, скидаємо на вигляд папок
+            if(tab === 'videos') {
+                showFoldersView();
+            } else {
+                pageTitle.innerText = "AI Analytics";
+            }
+        };
     </script>
 </body>
 </html>
