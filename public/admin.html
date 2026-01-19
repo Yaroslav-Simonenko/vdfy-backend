@@ -3,92 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VDFY Admin - Debug Mode</title>
-    
+    <title>VDFY Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-
-    <style>
-        body { font-family: sans-serif; }
-        #debug-console { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: #fff0f0; color: #cc0000; z-index: 9999; padding: 20px; 
-            font-family: monospace; font-size: 16px; white-space: pre-wrap; display: none;
-        }
-    </style>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
 </head>
-<body class="bg-gray-50" x-data="appData()">
+<body class="bg-gray-100" x-data="appData()">
 
-    <div id="debug-console"></div>
+    <div id="error-box" class="hidden fixed top-0 left-0 w-full bg-red-600 text-white p-4 text-center z-50 font-bold"></div>
 
-    <div x-show="false" class="fixed inset-0 flex items-center justify-center bg-gray-100 text-gray-500" style="display: flex;">
-        <div id="loading-msg">Завантаження інтерфейсу...<br>(Якщо цей напис не зникає, значить Alpine.js не запустився)</div>
-    </div>
-
-    <div x-show="!user" style="display: none;" class="fixed inset-0 z-50 flex items-center justify-center bg-white">
-        <div class="text-center">
-            <h1 class="text-4xl font-bold text-indigo-600 mb-2">VDFY Admin</h1>
-            <p class="text-gray-500 mb-6">Діагностична версія</p>
-            <button @click="login" class="bg-indigo-600 text-white px-6 py-3 rounded font-bold shadow hover:bg-indigo-700">
+    <div x-show="!user" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-xl shadow-lg text-center max-w-md w-full">
+            <h1 class="text-3xl font-bold text-indigo-600 mb-2">VDFY Admin</h1>
+            <p class="text-gray-500 mb-6">Панель керування</p>
+            <button @click="login" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition">
                 Увійти через Google
             </button>
         </div>
     </div>
 
-    <div x-show="user" style="display: none;" class="flex h-screen overflow-hidden">
+    <div x-show="user" class="hidden min-h-screen flex" :class="{'hidden': !user, 'flex': user}">
         <aside class="w-64 bg-white border-r flex flex-col">
-            <div class="h-16 flex items-center px-6 font-bold text-indigo-600 text-2xl">VDFY</div>
-            <nav class="flex-1 px-3 py-4 space-y-1">
-                <template x-for="item in navItems" :key="item.id">
-                    <a href="#" @click.prevent="currentTab = item.id" :class="currentTab === item.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'" class="flex items-center px-3 py-2 rounded">
-                        <span x-text="item.label"></span>
-                    </a>
-                </template>
+            <div class="h-16 flex items-center justify-center text-2xl font-bold text-indigo-600 border-b">VDFY</div>
+            <nav class="flex-1 p-4 space-y-2">
+                <button @click="currentTab='dashboard'" :class="currentTab==='dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'" class="w-full text-left px-4 py-2 rounded font-medium">📊 Dashboard</button>
+                <button @click="currentTab='media'" :class="currentTab==='media' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'" class="w-full text-left px-4 py-2 rounded font-medium">📁 Media Library</button>
+                <button @click="currentTab='ai'" :class="currentTab==='ai' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600'" class="w-full text-left px-4 py-2 rounded font-medium">🤖 AI Analyst</button>
             </nav>
             <div class="p-4 border-t">
-                <p x-text="user?.email" class="text-sm font-bold"></p>
-                <button @click="logout" class="text-red-500 text-xs">Вийти</button>
+                <div x-text="user?.email" class="text-xs font-bold truncate mb-2"></div>
+                <button @click="logout" class="text-red-500 text-sm font-medium hover:underline">Вийти</button>
             </div>
         </aside>
 
         <main class="flex-1 p-8 overflow-y-auto">
-            <h1 class="text-2xl font-bold mb-4" x-text="navItems.find(i=>i.id===currentTab).label"></h1>
-            
             <div x-show="currentTab === 'dashboard'">
-                <div class="bg-white p-6 rounded shadow">
-                    <h3 class="text-xl">Відео: <span x-text="stats.totalVideos"></span></h3>
+                <h2 class="text-2xl font-bold mb-6">Статистика</h2>
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border">
+                        <div class="text-gray-500 text-sm">Всього відео</div>
+                        <div class="text-4xl font-bold" x-text="stats.totalVideos">0</div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border">
+                        <div class="text-gray-500 text-sm">Активні форми</div>
+                        <div class="text-4xl font-bold" x-text="stats.activeForms">0</div>
+                    </div>
                 </div>
             </div>
 
             <div x-show="currentTab === 'media'">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <template x-for="(videos, folder) in groupedVideos" :key="folder">
-                        <div class="bg-white p-4 rounded shadow border cursor-pointer" @click="alert('Folder: ' + folder)">
-                            <div class="text-2xl">📁</div>
-                            <div x-text="folder"></div>
-                            <div class="text-xs text-gray-500" x-text="videos.length + ' файлів'"></div>
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Бібліотека</h2>
+                    <button x-show="viewMode === 'videos'" @click="viewMode = 'folders'" class="text-indigo-600 font-medium">⬅ Назад до папок</button>
+                </div>
+
+                <div x-show="viewMode === 'folders'" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <template x-for="(videos, folderName) in groupedVideos" :key="folderName">
+                        <div @click="openFolder(folderName)" class="bg-white p-6 rounded-xl border hover:shadow-md cursor-pointer text-center">
+                            <div class="text-4xl mb-3">📁</div>
+                            <h3 class="font-bold truncate" x-text="folderName"></h3>
+                            <div class="text-xs text-gray-400 mt-2" x-text="videos.length + ' відео'"></div>
                         </div>
                     </template>
+                </div>
+
+                <div x-show="viewMode === 'videos'" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <template x-for="video in currentFolderVideos" :key="video.key">
+                        <div class="bg-white rounded-xl border overflow-hidden shadow-sm">
+                            <video controls :src="video.url" class="w-full h-40 bg-black object-cover"></video>
+                            <div class="p-3">
+                                <div class="text-xs text-gray-400 mb-2" x-text="new Date(video.uploadedAt).toLocaleString()"></div>
+                                <div class="flex gap-2">
+                                    <button @click="viewText(video.textUrl)" class="flex-1 border rounded py-1 text-sm hover:bg-gray-50">Текст</button>
+                                    <button @click="alert('ШІ Аналіз скоро')" class="flex-1 bg-indigo-600 text-white rounded py-1 text-sm hover:bg-indigo-700">AI</button>
+                                </div>
+                                <button @click="deleteVideo(video.key)" class="w-full mt-2 text-xs text-red-400 hover:text-red-600">Видалити</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="currentTab === 'ai'">
+                <h2 class="text-2xl font-bold mb-4">AI Аналітика</h2>
+                <div class="bg-white p-10 rounded-xl border text-center text-gray-500">
+                    Функціонал у розробці 🛠
                 </div>
             </div>
         </main>
     </div>
 
-    <script>
-        // Глобальний перехоплювач помилок
-        window.onerror = function(msg, url, line, col, error) {
-            const debugBox = document.getElementById('debug-console');
-            debugBox.style.display = 'block';
-            debugBox.innerHTML += `🔴 ПОМИЛКА:\n${msg}\nLine: ${line}\n\n`;
-            document.getElementById('loading-msg').style.display = 'none';
-        };
-    </script>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇👇👇 ТУТ УВАЖНО ВСТАВ СВОЇ КЛЮЧІ 👇👇👇
+        // =======================================================
+        // 👇👇👇 ТУТ ВСТАВЛЯЙ ДАНІ (Тільки між лапками!) 👇👇👇
+        // =======================================================
+        
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -98,42 +111,53 @@
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
 
-        // 👆👆👆 ПЕРЕВІР, ЩОБ НЕ БУЛО ЗАЙВИХ КОМ (,) АБО ДУЖОК
+        // Перевірка, чи користувач замінив дані
+        if (API_KEY.includes("AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4")) {
+            const errBox = document.getElementById('error-box');
+            errBox.innerText = "❌ ПОМИЛКА: Ви забули вставити API Key у код файлу admin.html!";
+            errBox.classList.remove('hidden');
+            throw new Error("No Config");
+        }
 
         let app, auth, provider;
-
-        
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            provider = new GoogleAuthProvider();
+        } catch (e) {
+            document.getElementById('error-box').innerText = "❌ Firebase Error: " + e.message;
+            document.getElementById('error-box').classList.remove('hidden');
+        }
 
         document.addEventListener('alpine:init', () => {
             Alpine.data('appData', () => ({
                 user: null,
                 currentTab: 'dashboard',
+                viewMode: 'folders',
                 groupedVideos: {},
-                stats: { totalVideos: 0 },
-                navItems: [
-                    { id: 'dashboard', label: 'Dashboard' },
-                    { id: 'media', label: 'Media Library' },
-                    { id: 'ai', label: 'AI Analyst' },
-                    { id: 'billing', label: 'Billing' }
-                ],
+                currentFolderVideos: [],
+                stats: { totalVideos: 0, activeForms: 0 },
+
                 init() {
-                    console.log("Alpine init");
-                    if(auth) {
+                    if (auth) {
                         onAuthStateChanged(auth, u => {
                             this.user = u;
-                            if(u) this.loadData();
+                            if (u) this.loadData();
                         });
                     }
                 },
-                login() { signInWithPopup(auth, provider); },
-                logout() { signOut(auth); },
+
+                login() { if (auth) signInWithPopup(auth, provider); },
+                logout() { if (auth) signOut(auth); },
+
                 async loadData() {
                     if (!this.user) return;
                     try {
                         const token = await this.user.getIdToken();
                         const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
+                        if(!res.ok) throw new Error("API Error");
                         const data = await res.json();
-                        
+
                         this.groupedVideos = {};
                         let total = 0;
                         data.videos.forEach(v => {
@@ -143,7 +167,32 @@
                             total++;
                         });
                         this.stats.totalVideos = total;
+                        this.stats.activeForms = Object.keys(this.groupedVideos).length;
                     } catch (e) { console.error(e); }
+                },
+
+                openFolder(name) {
+                    this.currentFolderVideos = this.groupedVideos[name];
+                    this.viewMode = 'videos';
+                },
+
+                async viewText(url) {
+                    try {
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error();
+                        alert(await res.text());
+                    } catch (e) { alert("Текст ще не готовий"); }
+                },
+
+                async deleteVideo(key) {
+                    if(!confirm("Видалити це відео?")) return;
+                    const token = await this.user.getIdToken();
+                    await fetch('/api/delete-video', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ videoKey: key })
+                    });
+                    this.loadData();
                 }
             }));
         });
