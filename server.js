@@ -14,16 +14,20 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 
-// 🔥 ВИПРАВЛЕННЯ: Вмикаємо ізоляцію ТІЛЬКИ для рекордера
-// Це полагодить відображення відео в Dashboard
+// 🔥 РОЗУМНЕ НАЛАШТУВАННЯ БЕЗПЕКИ
 app.use((req, res, next) => {
+    // Вмикаємо ізоляцію ТІЛЬКИ для сторінок запису відео (бо там FFmpeg)
     if (req.path.includes('/r/') || req.path.includes('recorder.html')) {
         res.header("Cross-Origin-Embedder-Policy", "require-corp");
         res.header("Cross-Origin-Opener-Policy", "same-origin");
+    } else {
+        // Для Адмінки та інших сторінок — ВИМИКАЄМО обмеження, 
+        // щоб працювали Tailwind, Alpine та Firebase з CDN
+        res.removeHeader("Cross-Origin-Embedder-Policy");
+        res.removeHeader("Cross-Origin-Opener-Policy");
     }
     next();
 });
-
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
