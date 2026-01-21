@@ -14,7 +14,12 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
-
+app.use((req, res, next) => {
+    // Кажемо браузеру: "Ми не хочемо ізоляції, дозволь Google Login працювати скрізь"
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
+    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+    next();
+});
 // Базові налаштування
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
@@ -77,8 +82,9 @@ app.get('/dashboard', (req, res) => {
 
 // 3. РЕКОРДЕР (/r/:id) -> ТУТ ЗАХИСТ ЛИШАЄМО (Для FFmpeg)
 app.get('/r/:id', (req, res) => {
-    res.header("Cross-Origin-Embedder-Policy", "require-corp");
-    res.header("Cross-Origin-Opener-Policy", "same-origin");
+    // Перебиваємо глобальні налаштування, бо FFmpeg потребує захисту
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
