@@ -1,187 +1,159 @@
 <!DOCTYPE html>
-<html lang="en" class="">
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VDFY - Admin Console</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css" rel="stylesheet">
-
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-
-  <style>
-    /* Додаткові стилі з Admin One */
-    body { font-family: 'Inter', sans-serif; }
-    .aside-scroll::-webkit-scrollbar { width: 4px; }
-    .aside-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
-    [x-cloak] { display: none !important; }
-  </style>
-</head>
-<body class="bg-gray-50 dark:bg-gray-800" x-data="appData()" x-cloak>
-
-  <div x-show="!user" class="min-h-screen flex items-center justify-center bg-gray-100">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
-        <div class="mb-6 text-indigo-600 text-6xl"><i class="mdi mdi-video-outline"></i></div>
-        <h1 class="text-2xl font-bold text-gray-800 mb-2">Welcome to VDFY</h1>
-        <p class="text-gray-500 mb-8">Please sign in to manage your video forms.</p>
-        <button @click="login" class="w-full bg-gray-900 text-white py-3 px-4 rounded-lg font-bold hover:bg-gray-800 transition flex items-center justify-center gap-2">
-            <i class="mdi mdi-google"></i> Sign in with Google
-        </button>
-    </div>
-  </div>
-
-  <div x-show="user" class="min-h-screen flex overflow-hidden bg-gray-50">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VDFY Admin (Bootstrap)</title>
     
-    <aside class="w-64 bg-gray-900 text-white flex flex-col fixed h-full z-30 transition-transform transform lg:translate-x-0" 
-           :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
-      
-      <div class="h-16 flex items-center px-6 bg-gray-800 font-bold text-xl tracking-wider">
-        <span class="text-blue-500 mr-2">VDFY</span> ADMIN
-      </div>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
-      <div class="flex-1 overflow-y-auto aside-scroll py-4">
-        <nav class="space-y-1 px-3">
-          <p class="px-3 text-xs text-gray-500 uppercase font-bold mb-2">Menu</p>
-          
-          <a href="#" @click.prevent="currentTab = 'dashboard'" 
-             :class="currentTab === 'dashboard' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
-             class="flex items-center px-3 py-2 rounded-lg transition-colors">
-            <i class="mdi mdi-view-dashboard text-xl mr-3"></i>
-            <span class="font-medium">Dashboard</span>
-          </a>
+    <style>
+        body { background-color: #f8f9fa; overflow: hidden; }
+        .sidebar { min-width: 260px; max-width: 260px; height: 100vh; background: #212529; color: white; display: flex; flex-direction: column; }
+        .sidebar a { color: #adb5bd; text-decoration: none; padding: 12px 20px; display: block; border-radius: 6px; margin: 4px 10px; transition: 0.2s; }
+        .sidebar a:hover, .sidebar a.active { background: #0d6efd; color: white; }
+        .main-content { flex-grow: 1; height: 100vh; overflow-y: auto; padding: 30px; }
+        .card-video { transition: transform 0.2s; cursor: pointer; }
+        .card-video:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .video-preview { height: 180px; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .video-preview video { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Екран завантаження */
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="appData()" x-cloak>
 
-          <a href="#" @click.prevent="currentTab = 'media'"
-             :class="currentTab === 'media' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
-             class="flex items-center px-3 py-2 rounded-lg transition-colors">
-            <i class="mdi mdi-folder-multiple text-xl mr-3"></i>
-            <span class="font-medium">Media Library</span>
-          </a>
+    <div x-show="!user" class="container d-flex justify-content-center align-items-center vh-100">
+        <div class="card shadow-lg p-4 text-center" style="max-width: 400px; width: 100%;">
+            <div class="display-1 text-primary mb-3"><i class="bi bi-camera-reels"></i></div>
+            <h2 class="fw-bold mb-2">VDFY Admin</h2>
+            <p class="text-muted mb-4">Увійдіть, щоб керувати відео</p>
+            <button @click="login" class="btn btn-dark btn-lg w-100">
+                <i class="bi bi-google me-2"></i> Sign in with Google
+            </button>
+        </div>
+    </div>
 
-          <a href="#" @click.prevent="currentTab = 'ai'"
-             :class="currentTab === 'ai' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'"
-             class="flex items-center px-3 py-2 rounded-lg transition-colors">
-            <i class="mdi mdi-robot text-xl mr-3"></i>
-            <span class="font-medium">AI Analysis</span>
-          </a>
-        </nav>
-      </div>
+    <div x-show="user" class="d-flex h-100">
+        
+        <div class="sidebar shadow">
+            <div class="d-flex align-items-center p-4 border-bottom border-secondary">
+                <i class="bi bi-camera-reels-fill text-primary fs-3 me-2"></i>
+                <span class="fs-4 fw-bold">VDFY</span>
+            </div>
+            
+            <nav class="mt-3 flex-grow-1">
+                <a href="#" @click.prevent="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'active' : ''">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+                <a href="#" @click.prevent="currentTab = 'media'" :class="currentTab === 'media' ? 'active' : ''">
+                    <i class="bi bi-collection-play me-2"></i> Media Library
+                </a>
+                <a href="#" @click.prevent="currentTab = 'ai'" :class="currentTab === 'ai' ? 'active' : ''">
+                    <i class="bi bi-robot me-2"></i> AI Analysis
+                </a>
+            </nav>
 
-      <div class="p-4 bg-gray-800 border-t border-gray-700">
-        <div class="flex items-center gap-3 mb-3">
-            <img :src="user?.photoURL" class="w-8 h-8 rounded-full border border-gray-600">
-            <div class="overflow-hidden">
-                <p class="text-sm font-bold truncate" x-text="user?.displayName"></p>
-                <p class="text-xs text-gray-400 truncate" x-text="user?.email"></p>
+            <div class="p-3 border-top border-secondary bg-dark">
+                <div class="d-flex align-items-center mb-2">
+                    <img :src="user?.photoURL" class="rounded-circle me-2" width="32" height="32">
+                    <div class="text-truncate" style="max-width: 160px;">
+                        <small class="d-block fw-bold" x-text="user?.displayName"></small>
+                        <small class="text-muted" style="font-size: 10px;" x-text="user?.email"></small>
+                    </div>
+                </div>
+                <button @click="logout" class="btn btn-outline-danger btn-sm w-100">Вийти</button>
             </div>
         </div>
-        <button @click="logout" class="w-full text-left text-sm text-red-400 hover:text-red-300 flex items-center">
-            <i class="mdi mdi-logout mr-2"></i> Log Out
-        </button>
-      </div>
-    </aside>
 
-    <div class="flex-1 flex flex-col lg:ml-64 transition-all">
-        
-        <header class="h-16 bg-white shadow-sm flex items-center justify-between px-6 lg:hidden">
-            <button @click="mobileMenuOpen = !mobileMenuOpen" class="text-gray-600 focus:outline-none">
-                <i class="mdi mdi-menu text-2xl"></i>
-            </button>
-            <span class="font-bold text-gray-800">VDFY</span>
-        </header>
-
-        <main class="flex-1 p-6 overflow-y-auto">
+        <div class="main-content">
             
-            <div x-show="currentTab === 'dashboard'" class="animate-fade-in">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Overview</h2>
-                    <button @click="loadData" class="text-blue-600 hover:underline text-sm"><i class="mdi mdi-refresh"></i> Refresh</button>
+            <div x-show="currentTab === 'dashboard'">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3>Dashboard</h3>
+                    <button @click="loadData" class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-clockwise"></i> Оновити</button>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
-                        <div class="p-3 rounded-full bg-blue-50 text-blue-600 mr-4">
-                            <i class="mdi mdi-video text-2xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-gray-500 text-sm font-medium">Total Responses</p>
-                            <h3 class="text-2xl font-bold text-gray-800" x-text="stats.totalVideos">0</h3>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
-                        <div class="p-3 rounded-full bg-green-50 text-green-600 mr-4">
-                            <i class="mdi mdi-folder-outline text-2xl"></i>
-                        </div>
-                        <div>
-                            <p class="text-gray-500 text-sm font-medium">Active Forms</p>
-                            <h3 class="text-2xl font-bold text-gray-800" x-text="stats.activeForms">0</h3>
+                <div class="row g-4 mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="bg-primary bg-opacity-10 p-3 rounded-circle text-primary me-3">
+                                    <i class="bi bi-camera-video fs-3"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted mb-0">Всього відео</h6>
+                                    <h2 class="mb-0 fw-bold" x-text="stats.totalVideos">0</h2>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center">
-                        <div class="p-3 rounded-full bg-purple-50 text-purple-600 mr-4">
-                            <i class="mdi mdi-lightning-bolt text-2xl"></i>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="bg-success bg-opacity-10 p-3 rounded-circle text-success me-3">
+                                    <i class="bi bi-folder fs-3"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted mb-0">Активні форми</h6>
+                                    <h2 class="mb-0 fw-bold" x-text="stats.activeForms">0</h2>
+                                </div>
+                            </div>
                         </div>
-                        <div>
-                            <p class="text-gray-500 text-sm font-medium">Plan Status</p>
-                            <h3 class="text-lg font-bold text-gray-800">Pro Plan</h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="p-4 border-b border-gray-100 font-bold text-gray-800">Activity Chart</div>
-                    <div class="p-8 text-center text-gray-400">
-                        <i class="mdi mdi-chart-line text-4xl mb-2 block"></i>
-                        Chart integration coming soon...
                     </div>
                 </div>
             </div>
 
             <div x-show="currentTab === 'media'">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">Media Library</h2>
-                    <button x-show="viewMode === 'videos'" @click="viewMode = 'folders'" class="text-blue-600 font-medium hover:underline flex items-center">
-                        <i class="mdi mdi-arrow-left mr-1"></i> Back to Folders
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3>Media Library</h3>
+                    <button x-show="viewMode === 'videos'" @click="viewMode = 'folders'" class="btn btn-link text-decoration-none">
+                        &larr; Назад до папок
                     </button>
                 </div>
 
-                <div x-show="viewMode === 'folders'" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <div x-show="viewMode === 'folders'" class="row g-4">
                     <template x-for="(videos, folderName) in groupedVideos" :key="folderName">
-                        <div @click="openFolder(folderName)" class="bg-white p-6 rounded-xl border border-gray-200 hover:border-blue-500 hover:shadow-md cursor-pointer transition group text-center">
-                            <div class="text-blue-100 group-hover:text-blue-600 transition duration-300 mb-3">
-                                <i class="mdi mdi-folder text-6xl"></i>
+                        <div class="col-md-4 col-lg-3">
+                            <div @click="openFolder(folderName)" class="card text-center p-4 border-0 shadow-sm h-100 card-video">
+                                <div class="text-warning mb-3"><i class="bi bi-folder-fill display-4"></i></div>
+                                <h5 class="card-title text-truncate" x-text="folderName"></h5>
+                                <span class="badge bg-light text-dark border" x-text="videos.length + ' відео'"></span>
                             </div>
-                            <h3 class="font-bold text-gray-800 text-lg truncate" x-text="folderName"></h3>
-                            <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full mt-2 inline-block" x-text="videos.length + ' videos'"></span>
                         </div>
                     </template>
+                    <div x-show="Object.keys(groupedVideos).length === 0" class="col-12 text-center text-muted py-5">
+                        Немає записів.
+                    </div>
                 </div>
 
-                <div x-show="viewMode === 'videos'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div x-show="viewMode === 'videos'" class="row g-4">
                     <template x-for="video in currentFolderVideos" :key="video.key">
-                        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                            <div class="relative bg-black aspect-video">
-                                <video controls :src="video.url" class="w-full h-full object-cover"></video>
-                            </div>
-                            <div class="p-4">
-                                <div class="flex justify-between items-start mb-3">
-                                    <div class="text-xs text-gray-500 flex items-center">
-                                        <i class="mdi mdi-clock-outline mr-1"></i>
-                                        <span x-text="new Date(video.uploadedAt).toLocaleString()"></span>
+                        <div class="col-md-6 col-lg-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="video-preview">
+                                    <video controls :src="video.url"></video>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <small class="text-muted" x-text="new Date(video.uploadedAt).toLocaleString()"></small>
                                     </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2 mb-3">
-                                    <button @click="viewText(video.textUrl)" class="py-2 px-3 text-sm font-medium border border-gray-300 rounded text-gray-700 hover:bg-gray-50 flex items-center justify-center">
-                                        <i class="mdi mdi-file-document-outline mr-1"></i> Transcript
+                                    <div class="d-flex gap-2 mb-2">
+                                        <button @click="viewText(video.textUrl)" class="btn btn-outline-secondary btn-sm flex-fill">
+                                            <i class="bi bi-file-text"></i> Текст
+                                        </button>
+                                        <button @click="analyzeSingle(video.textUrl)" class="btn btn-primary btn-sm flex-fill">
+                                            <i class="bi bi-magic"></i> AI
+                                        </button>
+                                    </div>
+                                    <button @click="deleteVideo(video.key)" class="btn btn-link text-danger btn-sm w-100 text-decoration-none">
+                                        Видалити
                                     </button>
-                                    <button @click="analyzeSingle(video.textUrl)" class="py-2 px-3 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center">
-                                        <i class="mdi mdi-creation mr-1"></i> AI Insight
-                                    </button>
                                 </div>
-                                <button @click="deleteVideo(video.key)" class="w-full py-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition">
-                                    Delete Recording
-                                </button>
                             </div>
                         </div>
                     </template>
@@ -189,117 +161,113 @@
             </div>
 
             <div x-show="currentTab === 'ai'">
-                <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center mt-10">
-                    <div class="inline-block p-4 rounded-full bg-blue-50 text-blue-600 mb-4">
-                        <i class="mdi mdi-robot-excited text-6xl"></i>
-                    </div>
-                    <h2 class="text-3xl font-bold text-gray-800 mb-2">AI Analyst</h2>
-                    <p class="text-gray-500 mb-6">Select a folder to generate a comprehensive SWOT analysis and sentiment report.</p>
-                    <button class="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition shadow">
-                        Coming in v2.0
-                    </button>
+                <div class="text-center py-5">
+                    <div class="text-primary mb-3"><i class="bi bi-stars display-1"></i></div>
+                    <h3>AI Analyst</h3>
+                    <p class="text-muted">Ця функція з'явиться у наступному оновленні.</p>
                 </div>
             </div>
 
-        </main>
+        </div>
     </div>
-  </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // 👇👇👇 ВСТАВ СВОЇ КЛЮЧІ ТУТ 👇👇👇
-    const firebaseConfig = {
-    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-    authDomain: "vdfy-auth-system.firebaseapp.com",
-    projectId: "vdfy-auth-system",
-    storageBucket: "vdfy-auth-system.firebasestorage.app",
-    messagingSenderId: "381929137400",
-    appId: "1:381929137400:web:661c3b07907e639fa5070d"
-  };
+        // ====================================================
+        // 👇👇👇 ТУТ ВСТАВ КЛЮЧІ FIREBASE 👇👇👇
+        // ====================================================
+        const firebaseConfig = {
+            apiKey: "ВСТАВ_СЮДИ_KEY",
+            authDomain: "ВСТАВ_СЮДИ...",
+            projectId: "...",
+            storageBucket: "...",
+            messagingSenderId: "...",
+            appId: "..."
+        };
+        // ====================================================
 
-    let app, auth, provider;
-    try {
-        if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("ВСТАВ")) {
-             console.error("Firebase Config missing!");
-        } else {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            provider = new GoogleAuthProvider();
-        }
-    } catch(e) { console.error(e); }
-
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('appData', () => ({
-            user: null,
-            mobileMenuOpen: false,
-            currentTab: 'dashboard',
-            viewMode: 'folders',
-            groupedVideos: {},
-            currentFolderVideos: [],
-            stats: { totalVideos: 0, activeForms: 0 },
-
-            init() {
-                if (auth) {
-                    onAuthStateChanged(auth, u => {
-                        this.user = u;
-                        if(u) this.loadData();
-                    });
-                }
-            },
-
-            login() { if(auth) signInWithPopup(auth, provider); },
-            logout() { if(auth) signOut(auth); },
-
-            async loadData() {
-                if (!this.user) return;
-                try {
-                    const token = await this.user.getIdToken();
-                    const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
-                    const data = await res.json();
-                    
-                    this.groupedVideos = {};
-                    let total = 0;
-                    data.videos.forEach(v => {
-                        const f = v.formName || "General";
-                        if (!this.groupedVideos[f]) this.groupedVideos[f] = [];
-                        this.groupedVideos[f].push(v);
-                        total++;
-                    });
-                    this.stats.totalVideos = total;
-                    this.stats.activeForms = Object.keys(this.groupedVideos).length;
-                } catch (e) { console.error(e); }
-            },
-
-            openFolder(name) {
-                this.currentFolderVideos = this.groupedVideos[name];
-                this.viewMode = 'videos';
-            },
-
-            async viewText(url) {
-                try {
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error();
-                    const text = await res.text();
-                    alert("📝 Transcript:\n\n" + text);
-                } catch(e) { alert("Transcript is processing..."); }
-            },
-            
-            async analyzeSingle(url) { alert("Sending to AI for analysis..."); },
-            
-            async deleteVideo(key) {
-                if(!confirm("Are you sure you want to delete this video?")) return;
-                const token = await this.user.getIdToken();
-                await fetch('/api/delete-video', {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ videoKey: key })
-                });
-                this.loadData();
+        let app, auth, provider;
+        // Безпечна ініціалізація
+        try {
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("ВСТАВ")) {
+                console.warn("Keys missing");
+            } else {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                provider = new GoogleAuthProvider();
             }
-        }));
-    });
-  </script>
+        } catch(e) { console.error(e); }
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('appData', () => ({
+                user: null,
+                currentTab: 'dashboard',
+                viewMode: 'folders',
+                groupedVideos: {},
+                currentFolderVideos: [],
+                stats: { totalVideos: 0, activeForms: 0 },
+
+                init() {
+                    if (auth) {
+                        onAuthStateChanged(auth, u => {
+                            this.user = u;
+                            if(u) this.loadData();
+                        });
+                    }
+                },
+
+                login() { if(auth) signInWithPopup(auth, provider); },
+                logout() { if(auth) signOut(auth); },
+
+                async loadData() {
+                    if (!this.user) return;
+                    try {
+                        const token = await this.user.getIdToken();
+                        const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
+                        const data = await res.json();
+                        
+                        this.groupedVideos = {};
+                        let total = 0;
+                        data.videos.forEach(v => {
+                            const f = v.formName || "General";
+                            if (!this.groupedVideos[f]) this.groupedVideos[f] = [];
+                            this.groupedVideos[f].push(v);
+                            total++;
+                        });
+                        this.stats.totalVideos = total;
+                        this.stats.activeForms = Object.keys(this.groupedVideos).length;
+                    } catch (e) { console.error(e); }
+                },
+
+                openFolder(name) {
+                    this.currentFolderVideos = this.groupedVideos[name];
+                    this.viewMode = 'videos';
+                },
+
+                async viewText(url) {
+                    try {
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error();
+                        alert("📝 Transcript:\n\n" + await res.text());
+                    } catch(e) { alert("Ще обробляється..."); }
+                },
+                
+                analyzeSingle() { alert("Скоро буде!"); },
+                
+                async deleteVideo(key) {
+                    if(!confirm("Видалити?")) return;
+                    const token = await this.user.getIdToken();
+                    await fetch('/api/delete-video', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ videoKey: key })
+                    });
+                    this.loadData();
+                }
+            }));
+        });
+    </script>
 </body>
 </html>
