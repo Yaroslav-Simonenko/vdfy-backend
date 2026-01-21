@@ -60,23 +60,22 @@ const verifyToken = async (req, res, next) => {
 
 app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 
-// 1. НОВА АДМІНКА (/admin) -> БЕЗ ЗАХИСТУ (Щоб працювали скрипти)
+// 1. НОВА АДМІНКА (/admin) -> ДОЗВОЛЯЄМО POPUPS
 app.get('/admin', (req, res) => {
-    // Явно вимикаємо ізоляцію, щоб Google Login міг відкрити вікно
+    // 👇 ЦЕ ГОЛОВНЕ ВИПРАВЛЕННЯ: Дозволяємо вікна
     res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
     res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// 2. СТАРИЙ ДЕШБОРД (/dashboard) -> БЕЗ ЗАХИСТУ
+// 2. СТАРИЙ ДЕШБОРД (/dashboard) -> ТЕЖ ДОЗВОЛЯЄМО
 app.get('/dashboard', (req, res) => {
-    res.removeHeader("Cross-Origin-Embedder-Policy");
-    res.removeHeader("Cross-Origin-Opener-Policy");
-    // Переконайся, що файл dashboard.html існує в public!
+    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// 3. РЕКОРДЕР (/r/:id) -> З СУВОРИМ ЗАХИСТОМ (Для FFmpeg)
+// 3. РЕКОРДЕР (/r/:id) -> ТУТ ЗАХИСТ ЛИШАЄМО (Для FFmpeg)
 app.get('/r/:id', (req, res) => {
     res.header("Cross-Origin-Embedder-Policy", "require-corp");
     res.header("Cross-Origin-Opener-Policy", "same-origin");
@@ -97,11 +96,8 @@ app.get('/s/:id', async (req, res) => {
     } catch (e) { res.status(500).send("Server Error"); }
 });
 
-// ==================================================================
-// 🔥🔥🔥 API ENDPOINTS 🔥🔥🔥
-// ==================================================================
-
-// Отримати інфо про лінк (для рекордера)
+// ... (Решта API endpoints без змін) ...
+// Отримати інфо про лінк
 app.get('/api/link-info/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -110,7 +106,7 @@ app.get('/api/link-info/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Server error" }); }
 });
 
-// Створити коротке посилання (для розширення Chrome)
+// Shorten
 app.post('/api/shorten', async (req, res) => {
     try {
         const { type, email, formName, longUrl } = req.body;
@@ -129,7 +125,7 @@ app.post('/api/shorten', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ЗАВАНТАЖЕННЯ ВІДЕО + AI ОБРОБКА
+// Upload with AI
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
@@ -137,7 +133,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         if (!req.file) return res.status(400).json({ error: "No file" });
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
         
-        // Виправлення кодування для назв папок
         let rawName = req.body.subfolder || "General";
         try { rawName = decodeURIComponent(rawName); } catch(e) {}
         const formName = sanitize(rawName);
@@ -147,7 +142,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         tempPath = req.file.path;
         compressedPath = tempPath + '_compressed.mp4';
 
-        // Логіка стиснення (якщо треба)
         if (req.file.mimetype === 'video/mp4') {
              fs.copyFileSync(tempPath, compressedPath);
         } else {
@@ -160,25 +154,21 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
             });
         }
 
-        // OpenAI Whisper (Транскрибація)
         const transcription = await openai.audio.transcriptions.create({ 
             file: fs.createReadStream(compressedPath), model: "whisper-1", prompt: "Transcribe mixed languages." 
         });
 
-        // Завантаження в Cloudflare R2
         const r2Key = `users/${emailFolder}/${formName}/rec_${Date.now()}.mp4`;
         const longUrl = `${process.env.R2_PUBLIC_URL}/${r2Key}`;
 
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcription.text, ContentType: "text/plain; charset=utf-8" }));
 
-        // Збереження в Firestore
         const shortId = generateShortId();
         await db.collection('shortLinks').doc(shortId).set({
             url: longUrl, r2Key: r2Key, type: 'video', email: ownerEmail, transcription: transcription.text, createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Очищення тимчасових файлів
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
 
@@ -190,7 +180,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// Отримати список відео користувача
+// My Videos
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const email = req.user.email.toLowerCase();
@@ -203,7 +193,7 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     } catch (e) { res.json({ videos: [] }); }
 });
 
-// Видалити відео
+// Delete Video
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     try {
         const videoKey = req.body.videoKey;
@@ -213,7 +203,6 @@ app.delete('/api/delete-video', verifyToken, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ШІ Аналіз тексту
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
@@ -224,7 +213,6 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
 });
 
-// Створення клієнта (для адміна)
 app.post('/api/create-client', verifyToken, async (req, res) => {
     const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
     if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).json({ error: "Access Denied" });
@@ -236,6 +224,5 @@ app.post('/api/create-client', verifyToken, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Запуск сервера
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 serverInstance.setTimeout(600000);

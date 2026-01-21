@@ -109,7 +109,6 @@
                 videos: [],
 
                 init() {
-                    // Просто чекаємо Firebase тихо, без спінера
                     const check = setInterval(() => {
                         if (window.firebaseReady && window.authObj) {
                             clearInterval(check);
@@ -155,14 +154,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
+        // 👇👇👇 ТУТ МАЮТЬ БУТИ ТВОЇ ПОВНІ КЛЮЧІ З КОНСОЛІ 👇👇👇
         const firebaseConfig = {
-            apiKey: "AIzaSyDBUbYLkuMMQaKzoFNtIZjy4",
-            authDomain: "vdfy-auth-system.firebaseapp.com",
-            projectId: "vdfy-auth-system",
-            storageBucket: "vdfy-auth-system.firebasestorage.app",
-            messagingSenderId: "3874",
-            appId: "1:381929137400:"
-        };
+    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
+    authDomain: "vdfy-auth-system.firebaseapp.com",
+    projectId: "vdfy-auth-system",
+    storageBucket: "vdfy-auth-system.firebasestorage.app",
+    messagingSenderId: "381929137400",
+    appId: "1:381929137400:web:661c3b07907e639fa5070d"
+  };
 
         try {
             const app = initializeApp(firebaseConfig);
