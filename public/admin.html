@@ -23,14 +23,19 @@
 <body x-data="initApp()" x-cloak>
 
     <div x-show="isLoading" class="position-fixed top-0 start-0 w-100 h-100 bg-white d-flex justify-content-center align-items-center" style="z-index: 9999;">
-        <div class="spinner-border text-primary" role="status"></div>
+        <div class="text-center">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <div class="text-muted">Connecting to VDFY...</div>
+        </div>
     </div>
 
     <div x-show="!user && !isLoading" class="container d-flex justify-content-center align-items-center vh-100">
-        <div class="card shadow p-5 text-center">
-            <h1>🔐</h1>
-            <h3>VDFY Admin</h3>
-            <button @click="loginWithGoogle" class="btn btn-dark mt-3">Увійти через Google</button>
+        <div class="card shadow p-5 text-center" style="max-width: 400px; width: 100%;">
+            <h1 class="mb-4">🔐</h1>
+            <h3 class="mb-4">VDFY Admin</h3>
+            <button @click="loginWithGoogle" class="btn btn-dark w-100 py-2">
+                <i class="bi bi-google me-2"></i> Увійти через Google
+            </button>
         </div>
     </div>
 
@@ -38,8 +43,8 @@
         <div class="sidebar">
             <div class="p-4 fs-4 fw-bold text-white border-bottom border-secondary">VDFY</div>
             <nav class="mt-3">
-                <a href="#" @click.prevent="tab = 'dash'" :class="tab==='dash' ? 'active' : ''">Dashboard</a>
-                <a href="#" @click.prevent="tab = 'media'" :class="tab==='media' ? 'active' : ''">Media</a>
+                <a href="#" @click.prevent="tab = 'dash'" :class="tab==='dash' ? 'active' : ''"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
+                <a href="#" @click.prevent="tab = 'media'" :class="tab==='media' ? 'active' : ''"><i class="bi bi-collection-play me-2"></i> Media</a>
             </nav>
             <div class="mt-auto p-3 border-top border-secondary">
                 <small x-text="user?.email" class="d-block text-truncate mb-2 text-muted"></small>
@@ -52,40 +57,46 @@
                 <h2>Dashboard</h2>
                 <div class="row mt-4">
                     <div class="col-md-4">
-                        <div class="card p-3 shadow-sm">
+                        <div class="card p-4 shadow-sm border-0 bg-primary text-white">
                             <h5>Всього відео</h5>
-                            <h2 x-text="videos.length">0</h2>
+                            <h1 class="display-4 fw-bold" x-text="videos.length">0</h1>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div x-show="tab === 'media'">
-                <div class="d-flex justify-content-between mb-3">
+                <div class="d-flex justify-content-between mb-4">
                     <h2>Media Library</h2>
-                    <button @click="fetchVideos" class="btn btn-sm btn-primary">🔄 Оновити</button>
+                    <button @click="loadData(user)" class="btn btn-primary"><i class="bi bi-arrow-clockwise"></i> Оновити</button>
                 </div>
                 
-                <div class="row g-3">
+                <div class="row g-4">
                     <template x-for="video in videos" :key="video.key">
-                        <div class="col-md-4">
-                            <div class="card shadow-sm h-100">
-                                <video :src="video.url" controls class="card-img-top bg-black" style="height: 200px; object-fit: contain;"></video>
+                        <div class="col-md-4 col-lg-3">
+                            <div class="card shadow-sm h-100 border-0">
+                                <div class="ratio ratio-16x9 bg-black rounded-top">
+                                    <video :src="video.url" controls class="object-fit-cover"></video>
+                                </div>
                                 <div class="card-body">
-                                    <h6 x-text="video.formName || 'General'"></h6>
-                                    <small class="text-muted" x-text="new Date(video.uploadedAt).toLocaleString()"></small>
-                                    <button @click="deleteVid(video.key)" class="btn btn-sm btn-outline-danger w-100 mt-2">Видалити</button>
+                                    <h6 class="card-title fw-bold" x-text="video.formName || 'General'"></h6>
+                                    <p class="card-text small text-muted" x-text="new Date(video.uploadedAt).toLocaleString()"></p>
+                                    <div class="d-grid gap-2">
+                                        <button @click="deleteVid(video.key)" class="btn btn-sm btn-outline-danger">Видалити</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </template>
+                </div>
+                <div x-show="videos.length === 0" class="text-center text-muted py-5">
+                    Список відео порожній.
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Ця функція доступна завжди. Alpine знайде її 100%.
         function initApp() {
             return {
                 user: null,
@@ -93,23 +104,29 @@
                 tab: 'dash',
                 videos: [],
 
-                // Функції-заглушки, які будуть замінені Firebase
-                loginWithGoogle() { console.log("Firebase not ready"); },
-                logoutUser() { console.log("Firebase not ready"); },
-                fetchVideos() { console.log("Firebase not ready"); },
-                deleteVid(key) { console.log("Delete", key); },
+                init() {
+                    // "Рукостискання": перевіряємо кожні 100мс, чи завантажився Firebase
+                    const check = setInterval(() => {
+                        if (window.firebaseReady) {
+                            clearInterval(check);
+                            console.log("🔥 Firebase Connected!");
+                            
+                            // Слухаємо вхід юзера
+                            window.authObj.onAuthStateChanged(window.authInst, (u) => {
+                                this.user = u;
+                                this.isLoading = false;
+                                if (u) this.loadData(u);
+                            });
+                        }
+                    }, 100);
+                },
 
-                // Цей метод викличеться, коли Firebase завантажиться
-                setFirebaseActions(auth, provider, functions) {
-                    this.loginWithGoogle = () => functions.signInWithPopup(auth, provider);
-                    this.logoutUser = () => functions.signOut(auth);
-                    
-                    // Слідкуємо за юзером
-                    functions.onAuthStateChanged(auth, (u) => {
-                        this.user = u;
-                        this.isLoading = false;
-                        if (u) this.loadData(u);
-                    });
+                loginWithGoogle() { 
+                    window.authObj.signInWithPopup(window.authInst, window.providerInst); 
+                },
+                
+                logoutUser() { 
+                    window.authObj.signOut(window.authInst); 
                 },
 
                 async loadData(user) {
@@ -122,7 +139,7 @@
                 },
 
                 async deleteVid(key) {
-                    if(!confirm("Видалити?")) return;
+                    if(!confirm("Видалити це відео?")) return;
                     const token = await this.user.getIdToken();
                     await fetch('/api/delete-video', {
                         method: 'DELETE',
@@ -151,25 +168,15 @@
 
         try {
             const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const provider = new GoogleAuthProvider();
-
-            // Чекаємо, поки Alpine завантажиться, і передаємо йому Firebase
-            document.addEventListener('alpine:init', () => {
-                // Магія: знаходимо компонент Alpine і даємо йому силу Firebase
-                const root = document.querySelector('[x-data]');
-                if(root && root._x_dataStack) {
-                    root._x_dataStack[0].setFirebaseActions(auth, provider, { signInWithPopup, signOut, onAuthStateChanged });
-                } else {
-                    // Якщо Alpine ще спить, чекаємо секунду
-                    setTimeout(() => {
-                         const r = document.querySelector('[x-data]');
-                         if(r) r._x_dataStack[0].setFirebaseActions(auth, provider, { signInWithPopup, signOut, onAuthStateChanged });
-                    }, 500);
-                }
-            });
+            // Експортуємо Firebase у глобальне вікно, щоб Alpine його побачив
+            window.authInst = getAuth(app);
+            window.providerInst = new GoogleAuthProvider();
+            window.authObj = { signInWithPopup, signOut, onAuthStateChanged };
+            
+            // Сигнал, що все готово
+            window.firebaseReady = true;
         } catch(e) {
-            console.error("Firebase Error:", e);
+            console.error("Firebase Init Error:", e);
         }
     </script>
 </body>
