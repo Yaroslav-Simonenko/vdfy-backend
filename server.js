@@ -62,8 +62,9 @@ app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 
 // 1. НОВА АДМІНКА (/admin) -> БЕЗ ЗАХИСТУ (Щоб працювали скрипти)
 app.get('/admin', (req, res) => {
-    res.removeHeader("Cross-Origin-Embedder-Policy");
-    res.removeHeader("Cross-Origin-Opener-Policy");
+    // Явно вимикаємо ізоляцію, щоб Google Login міг відкрити вікно
+    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 

@@ -7,43 +7,31 @@
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 
     <style>
         body { background-color: #f8f9fa; }
-        /* Стилі бічного меню */
         .sidebar { min-width: 260px; max-width: 260px; height: 100vh; background: #212529; color: white; display: flex; flex-direction: column; position: fixed; }
         .sidebar a { color: #adb5bd; text-decoration: none; padding: 12px 20px; display: block; border-radius: 6px; margin: 4px 10px; transition: 0.2s; }
         .sidebar a:hover, .sidebar a.active { background: #0d6efd; color: white; }
-        /* Відступ для контенту праворуч */
         .content-wrapper { margin-left: 260px; padding: 30px; }
-        /* Ховати елементи до завантаження Alpine */
         [x-cloak] { display: none !important; }
     </style>
 </head>
 
 <body x-data="initApp()" x-cloak>
 
-    <div x-show="isLoading" class="position-fixed top-0 start-0 w-100 h-100 bg-white d-flex justify-content-center align-items-center" style="z-index: 9999;">
-        <div class="text-center">
-            <div class="spinner-border text-primary mb-3" role="status"></div>
-            <div class="text-muted">Connecting to VDFY...</div>
-        </div>
-    </div>
-
-    <div x-show="!user && !isLoading" class="container d-flex justify-content-center align-items-center vh-100">
+    <div x-show="!user" class="container d-flex justify-content-center align-items-center vh-100">
         <div class="card shadow p-5 text-center" style="max-width: 400px; width: 100%;">
             <h1 class="mb-4">🔐</h1>
-            <h3 class="text-danger">VDFY Admin (ВЕРСІЯ 2.0)</h3>
-            <p class="text-muted">Панель керування відео-формами</p>
+            <h3 class="mb-4">VDFY Admin</h3>
             <button @click="loginWithGoogle" class="btn btn-dark w-100 py-3 fw-bold shadow-sm">
                 <i class="bi bi-google me-2"></i> Увійти через Google
             </button>
         </div>
     </div>
 
-    <div x-show="user && !isLoading">
+    <div x-show="user">
         <div class="sidebar">
             <div class="p-4 fs-4 fw-bold text-white border-bottom border-secondary">
                 <i class="bi bi-camera-reels me-2"></i>VDFY
@@ -68,23 +56,13 @@
         </div>
 
         <div class="content-wrapper">
-            
             <div x-show="tab === 'dash'">
                 <h2>Dashboard</h2>
                 <div class="row mt-4">
                     <div class="col-md-4">
                         <div class="card p-4 shadow-sm border-0 bg-primary text-white h-100">
                             <h5>Всього завантажено</h5>
-                            <div class="d-flex align-items-center mt-3">
-                                <i class="bi bi-film display-4 me-3"></i>
-                                <h1 class="display-4 fw-bold mb-0" x-text="videos.length">0</h1>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-8">
-                        <div class="card p-4 shadow-sm border-0 h-100 d-flex justify-content-center align-items-center text-muted">
-                            <i class="bi bi-bar-chart-line display-1 mb-3 opacity-25"></i>
-                            <p>Статистика переглядів з'явиться тут</p>
+                            <h1 class="display-4 fw-bold mb-0" x-text="videos.length">0</h1>
                         </div>
                     </div>
                 </div>
@@ -108,24 +86,16 @@
                                 <div class="card-body">
                                     <h6 class="card-title fw-bold text-truncate" x-text="video.formName || 'General'"></h6>
                                     <p class="card-text small text-muted mb-3">
-                                        <i class="bi bi-calendar3 me-1"></i>
                                         <span x-text="new Date(video.uploadedAt).toLocaleString()"></span>
                                     </p>
-                                    <div class="d-grid gap-2">
-                                        <button @click="deleteVid(video.key)" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i> Видалити
-                                        </button>
-                                    </div>
+                                    <button @click="deleteVid(video.key)" class="btn btn-sm btn-outline-danger w-100">Видалити</button>
                                 </div>
                             </div>
                         </div>
                     </template>
                 </div>
-
                 <div x-show="videos.length === 0" class="text-center text-muted py-5 mt-5">
-                    <i class="bi bi-inbox display-1 d-block mb-3 opacity-25"></i>
                     <h4>Поки що пусто</h4>
-                    <p>Тут з'являться відео, коли хтось заповнить вашу форму.</p>
                 </div>
             </div>
         </div>
@@ -135,30 +105,16 @@
         function initApp() {
             return {
                 user: null,
-                isLoading: true,
                 tab: 'dash',
                 videos: [],
 
                 init() {
-                    console.log("🚀 Alpine App Start");
-                    
-                    // ЗАПОБІЖНИК: Якщо Firebase тупить, через 3 сек показуємо вхід
-                    setTimeout(() => {
-                        if (this.isLoading && !this.user) {
-                            console.warn("⚠️ Firebase too slow, forcing login screen");
-                            this.isLoading = false;
-                        }
-                    }, 3000);
-
-                    // Чекаємо підключення Firebase
+                    // Просто чекаємо Firebase тихо, без спінера
                     const check = setInterval(() => {
-                        if (window.firebaseReady) {
+                        if (window.firebaseReady && window.authObj) {
                             clearInterval(check);
-                            console.log("✅ Alpine connected to Firebase");
-                            
                             window.authObj.onAuthStateChanged(window.authInst, (u) => {
                                 this.user = u;
-                                this.isLoading = false;
                                 if (u) this.loadData(u);
                             });
                         }
@@ -166,13 +122,11 @@
                 },
 
                 loginWithGoogle() { 
-                    if(!window.authObj) return alert("Firebase ще не завантажився. Перевірте інтернет.");
-                    window.authObj.signInWithPopup(window.authInst, window.providerInst); 
+                    if(!window.authObj) return alert("Секунду, система ініціалізується...");
+                    window.authObj.signInWithPopup(window.authInst, window.providerInst).catch(e => alert(e.message)); 
                 },
                 
-                logoutUser() { 
-                    window.authObj.signOut(window.authInst); 
-                },
+                logoutUser() { window.authObj.signOut(window.authInst); },
 
                 async loadData(user) {
                     try {
@@ -184,7 +138,7 @@
                 },
 
                 async deleteVid(key) {
-                    if(!confirm("Видалити це відео безповоротно?")) return;
+                    if(!confirm("Видалити?")) return;
                     const token = await this.user.getIdToken();
                     await fetch('/api/delete-video', {
                         method: 'DELETE',
@@ -201,34 +155,22 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇
-        // УВАГА! ВСТАВ СВОЇ КЛЮЧІ ЗАМІСТЬ ЦЬОГО ТЕКСТУ
-        // 👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇👇
         const firebaseConfig = {
-    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-    authDomain: "vdfy-auth-system.firebaseapp.com",
-    projectId: "vdfy-auth-system",
-    storageBucket: "vdfy-auth-system.firebasestorage.app",
-    messagingSenderId: "381929137400",
-    appId: "1:381929137400:web:661c3b07907e639fa5070d"
-  };
+            apiKey: "AIzaSyDBUbYLkuMMQaKzoFNtIZjy4",
+            authDomain: "vdfy-auth-system.firebaseapp.com",
+            projectId: "vdfy-auth-system",
+            storageBucket: "vdfy-auth-system.firebasestorage.app",
+            messagingSenderId: "3874",
+            appId: "1:381929137400:"
+        };
 
         try {
-            // Ініціалізація
             const app = initializeApp(firebaseConfig);
-            
-            // Експорт для Alpine
             window.authInst = getAuth(app);
             window.providerInst = new GoogleAuthProvider();
             window.authObj = { signInWithPopup, signOut, onAuthStateChanged };
-            
-            // Прапорець готовності
             window.firebaseReady = true;
-            console.log("🔥 Firebase Module Loaded");
-        } catch(e) {
-            console.error("Firebase Init Error:", e);
-            alert("Помилка ключів Firebase! Перевірте консоль (F12)");
-        }
+        } catch(e) { console.error(e); }
     </script>
 </body>
 </html>
