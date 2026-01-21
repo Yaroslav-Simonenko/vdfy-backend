@@ -189,16 +189,7 @@
         // ====================================================
 
         let app, auth, provider;
-        // Безпечна ініціалізація
-        try {
-            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4")) {
-                console.warn("Keys missing");
-            } else {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                provider = new GoogleAuthProvider();
-            }
-        } catch(e) { console.error(e); }
+        
 
         document.addEventListener('alpine:init', () => {
             Alpine.data('appData', () => ({
