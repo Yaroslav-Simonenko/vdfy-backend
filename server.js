@@ -15,9 +15,12 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 app.use((req, res, next) => {
-    // Кажемо браузеру: "Ми не хочемо ізоляції, дозволь Google Login працювати скрізь"
-    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
+    // Дозволяємо попапам (Google Login) працювати, зберігаючи безпеку
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    // Вимикаємо ізоляцію ресурсів, щоб картинки і скрипти вантажились вільно
     res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
+    // Додатково допомагає з редіректами Google
+    res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
     next();
 });
 // Базові налаштування
