@@ -179,19 +179,19 @@
         // 👇👇👇 ТУТ ВСТАВ КЛЮЧІ FIREBASE 👇👇👇
         // ====================================================
         const firebaseConfig = {
-            apiKey: "ВСТАВ_СЮДИ_KEY",
-            authDomain: "ВСТАВ_СЮДИ...",
-            projectId: "...",
-            storageBucket: "...",
-            messagingSenderId: "...",
-            appId: "..."
-        };
+    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
+    authDomain: "vdfy-auth-system.firebaseapp.com",
+    projectId: "vdfy-auth-system",
+    storageBucket: "vdfy-auth-system.firebasestorage.app",
+    messagingSenderId: "381929137400",
+    appId: "1:381929137400:web:661c3b07907e639fa5070d"
+  };
         // ====================================================
 
         let app, auth, provider;
         // Безпечна ініціалізація
         try {
-            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("ВСТАВ")) {
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4")) {
                 console.warn("Keys missing");
             } else {
                 app = initializeApp(firebaseConfig);
