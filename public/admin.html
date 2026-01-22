@@ -13,21 +13,16 @@
 <body x-data="initApp()" x-cloak class="bg-gray-50 text-slate-800 font-sans h-screen flex overflow-hidden">
 
     <div x-show="!user" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-100">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden">
-            <div class="bg-blue-600 p-6 text-center text-white">
-                <h2 class="text-2xl font-bold">Admin Panel</h2>
-            </div>
-            <div class="p-8">
-                <form @submit.prevent="loginWithEmail" class="space-y-4">
-                    <input type="email" x-model="email" class="w-full px-4 py-3 border rounded-xl" placeholder="admin@vdfy.org" required>
-                    <input type="password" x-model="password" class="w-full px-4 py-3 border rounded-xl" placeholder="••••••" required>
-                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition" :disabled="isLoggingIn">
-                        <span x-show="!isLoggingIn">Увійти</span>
-                        <span x-show="isLoggingIn">...</span>
-                    </button>
-                </form>
-                <p x-show="loginError" x-text="loginError" class="text-red-500 text-center mt-4 text-sm"></p>
-            </div>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border p-8">
+            <h2 class="text-2xl font-bold text-center mb-6 text-blue-600">👑 Admin Login</h2>
+            <form @submit.prevent="loginWithEmail" class="space-y-4">
+                <input type="email" x-model="email" class="w-full px-4 py-3 border rounded-xl" placeholder="admin@vdfy.org" required>
+                <input type="password" x-model="password" class="w-full px-4 py-3 border rounded-xl" placeholder="••••••" required>
+                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition" :disabled="isLoggingIn">
+                    <span x-show="!isLoggingIn">Увійти</span> <span x-show="isLoggingIn">...</span>
+                </button>
+            </form>
+            <p x-show="loginError" x-text="loginError" class="text-red-500 text-center mt-4"></p>
         </div>
     </div>
 
@@ -35,103 +30,136 @@
         <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
             <div class="p-6 text-white font-bold text-xl border-b border-slate-800">🚀 VDFY Admin</div>
             <nav class="flex-1 p-4 space-y-2">
-                <a href="#" @click.prevent="tab = 'dash'" :class="tab==='dash'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
-                    <i class="bi bi-speedometer2"></i> Dashboard
+                <a href="#" @click.prevent="tab='media'; currentFolder=null" :class="tab==='media'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
+                    <i class="bi bi-collection-play"></i> Клієнти / Відео
                 </a>
-                <a href="#" @click.prevent="tab = 'media'" :class="tab==='media'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
-                    <i class="bi bi-collection-play"></i> Медіатека
-                </a>
-                <a href="#" @click.prevent="tab = 'users'" :class="tab==='users'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
-                    <i class="bi bi-people"></i> Клієнти
+                <a href="#" @click.prevent="tab='create'" :class="tab==='create'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
+                    <i class="bi bi-person-plus"></i> Створити Клієнта
                 </a>
             </nav>
-            <div class="p-4 border-t border-slate-800">
-                <p class="text-xs text-slate-500 mb-2 truncate" x-text="user?.email"></p>
-                <button @click="logoutUser" class="text-red-400 text-sm hover:text-white flex gap-2 items-center"><i class="bi bi-box-arrow-right"></i> Вийти</button>
+            <div class="p-4 border-t border-slate-800 text-xs">
+                <button @click="logoutUser" class="text-red-400 hover:text-white flex gap-2 items-center"><i class="bi bi-box-arrow-right"></i> Вийти</button>
             </div>
         </aside>
 
-        <main class="flex-1 p-8 overflow-y-auto">
-            <div x-show="tab === 'dash'">
-                <h2 class="text-3xl font-bold mb-6">Привіт, Адмін! 👋</h2>
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 w-fit">
-                    <p class="text-slate-500 text-sm uppercase font-bold">Мої відео</p>
-                    <p class="text-4xl font-bold text-blue-600" x-text="videos.length">0</p>
-                </div>
-            </div>
-
+        <main class="flex-1 p-8 overflow-y-auto bg-slate-50">
+            
             <div x-show="tab === 'media'">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold">Медіатека</h2>
-                    <button @click="loadData(user)" class="bg-white border px-4 py-2 rounded-lg hover:bg-gray-50">🔄 Оновити</button>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <template x-for="video in videos" :key="video.key">
-                        <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-                            <video :src="video.url" controls class="w-full aspect-video bg-black"></video>
-                            <div class="p-4">
-                                <h3 class="font-bold truncate" x-text="video.formName"></h3>
-                                <p class="text-xs text-gray-400 mb-3" x-text="new Date(video.uploadedAt).toLocaleString()"></p>
-                                <button @click="deleteVid(video.key)" class="text-red-500 text-sm hover:underline">Видалити</button>
+                
+                <div x-show="!currentFolder">
+                    <header class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">📂 Папки Клієнтів</h2>
+                        <button @click="loadData(user)" class="bg-white border px-4 py-2 rounded-lg hover:bg-gray-50">🔄 Оновити</button>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        <template x-for="client in Object.keys(groupedVideos)" :key="client">
+                            <div @click="currentFolder = client" class="bg-white p-6 rounded-2xl shadow-sm border hover:shadow-md cursor-pointer transition group">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+                                        <i class="bi bi-folder-fill"></i>
+                                    </div>
+                                    <div class="overflow-hidden">
+                                        <h3 class="font-bold text-slate-800 truncate" x-text="client"></h3>
+                                        <p class="text-xs text-slate-500" x-text="groupedVideos[client].length + ' відео'"></p>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </template>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="currentFolder">
+                    <header class="flex items-center gap-4 mb-6">
+                        <button @click="currentFolder = null" class="bg-white px-3 py-2 rounded-lg border hover:bg-gray-100">⬅ Назад</button>
+                        <h2 class="text-2xl font-bold flex items-center gap-2">
+                            <span class="text-slate-400">Клієнт:</span> 
+                            <span x-text="currentFolder"></span>
+                        </h2>
+                    </header>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <template x-for="video in groupedVideos[currentFolder]" :key="video.key">
+                            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                                <div class="aspect-video bg-black relative">
+                                    <video :src="video.url" controls class="w-full h-full object-cover"></video>
+                                </div>
+                                <div class="p-4">
+                                    <h3 class="font-bold truncate" x-text="video.formName"></h3>
+                                    <p class="text-xs text-gray-400 mb-3" x-text="new Date(video.uploadedAt).toLocaleString()"></p>
+                                    <button @click="deleteVid(video.key)" class="text-red-500 text-sm hover:underline">Видалити</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </div>
 
-            <div x-show="tab === 'users'">
-                <h2 class="text-2xl font-bold mb-6">Керування Клієнтами</h2>
+            <div x-show="tab === 'create'">
+                <h2 class="text-2xl font-bold mb-6">Створити нового клієнта</h2>
                 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-lg">
-                    <h3 class="font-bold text-lg mb-4">Створити нового клієнта</h3>
-                    <form @submit.prevent="createClient" class="space-y-4">
+                <div class="bg-white p-8 rounded-2xl shadow-sm border max-w-lg">
+                    <form @submit.prevent="createClient" class="space-y-6" x-show="!createdClientData">
                         <div>
-                            <label class="block text-sm font-medium mb-1">Email клієнта</label>
-                            <input type="email" x-model="newClientEmail" class="w-full px-4 py-2 border rounded-lg" required placeholder="client@company.com">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Email клієнта</label>
+                            <input type="email" x-model="newClientEmail" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" required placeholder="client@company.com">
+                            <p class="text-xs text-slate-500 mt-2">ℹ️ Пароль буде згенеровано автоматично.</p>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">Пароль клієнта</label>
-                            <input type="text" x-model="newClientPass" class="w-full px-4 py-2 border rounded-lg" required placeholder="password123">
-                        </div>
-                        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-bold w-full">
-                            Створити акаунт
+                        <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition">
+                            Згенерувати доступ 🎲
                         </button>
                     </form>
-                    <p x-show="clientMsg" x-text="clientMsg" class="mt-4 text-center font-medium" :class="clientError ? 'text-red-500' : 'text-green-500'"></p>
-                </div>
-                
-                <div class="mt-8 text-sm text-slate-500">
-                    <p>ℹ️ <b>Як це працює:</b></p>
-                    <ul class="list-disc ml-5 space-y-1">
-                        <li>Створений юзер зможе увійти в Dashboard.</li>
-                        <li>Він побачить <b>тільки свої</b> відео.</li>
-                        <li>Він <b>НЕ</b> зможе зайти в цю Адмін-панель.</li>
-                    </ul>
+
+                    <div x-show="createdClientData" class="text-center animate-fade-in">
+                        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+                            <i class="bi bi-check-lg"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-800 mb-2">Успішно створено!</h3>
+                        <p class="text-slate-500 mb-6">Скопіюйте ці дані та надішліть клієнту:</p>
+                        
+                        <div class="bg-slate-100 p-4 rounded-xl text-left font-mono text-sm border border-slate-200 mb-6">
+                            <div class="mb-2">
+                                <span class="text-slate-400">Login:</span> <br>
+                                <span class="text-slate-900 font-bold text-lg select-all" x-text="createdClientData?.email"></span>
+                            </div>
+                            <div>
+                                <span class="text-slate-400">Password:</span> <br>
+                                <span class="text-blue-600 font-bold text-xl select-all" x-text="createdClientData?.password"></span>
+                            </div>
+                        </div>
+
+                        <button @click="createdClientData = null; newClientEmail = ''" class="text-blue-600 font-bold hover:underline">
+                            + Створити ще одного
+                        </button>
+                    </div>
+
+                    <p x-show="clientError" x-text="clientError" class="mt-4 text-center text-red-500 font-bold"></p>
                 </div>
             </div>
+
         </main>
     </div>
 
     <script>
-        // 👇👇👇 ВПИШИ СВОЮ АДМІНСЬКУ ПОШТУ ТУТ ДЛЯ ЗАХИСТУ 👇👇👇
         const MY_ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
 
         function initApp() {
             return {
-                user: null, tab: 'media', videos: [],
+                user: null, tab: 'media', 
+                groupedVideos: {}, currentFolder: null, // Для папок
                 email: '', password: '', isLoggingIn: false, loginError: '',
-                newClientEmail: '', newClientPass: '', clientMsg: '', clientError: false,
+                
+                // Create Client Vars
+                newClientEmail: '', createdClientData: null, clientError: '',
 
                 init() {
                     const check = setInterval(() => {
                         if (window.firebaseReady && window.authObj) {
                             clearInterval(check);
                             window.authObj.onAuthStateChanged(window.authInst, (u) => {
-                                // 🔥 ЗАХИСТ НА КЛІЄНТІ
                                 if (u && u.email.toLowerCase() !== MY_ADMIN_EMAIL.toLowerCase()) {
-                                    alert("⛔ Доступ заборонено! Це тільки для Адміністратора.");
+                                    alert("⛔ Тільки Адмін має доступ!");
                                     window.authObj.signOut(window.authInst);
-                                    this.user = null;
                                     return;
                                 }
                                 this.user = u;
@@ -144,9 +172,8 @@
                 async loginWithEmail() { 
                     if(!window.authObj) return;
                     this.isLoggingIn = true; this.loginError = '';
-                    try {
-                        await window.authObj.signInWithEmailAndPassword(window.authInst, this.email, this.password);
-                    } catch (e) { this.loginError = "Помилка входу. Перевірте дані."; } 
+                    try { await window.authObj.signInWithEmailAndPassword(window.authInst, this.email, this.password); } 
+                    catch (e) { this.loginError = "Помилка входу."; } 
                     finally { this.isLoggingIn = false; }
                 },
                 
@@ -157,7 +184,15 @@
                         const token = await user.getIdToken();
                         const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` }});
                         const data = await res.json();
-                        this.videos = data.videos || [];
+                        
+                        // 🔥 ГРУПУВАННЯ ПО ВЛАСНИКУ (OWNER)
+                        this.groupedVideos = {};
+                        (data.videos || []).forEach(vid => {
+                            const owner = vid.owner || "Other";
+                            if (!this.groupedVideos[owner]) this.groupedVideos[owner] = [];
+                            this.groupedVideos[owner].push(vid);
+                        });
+                        
                     } catch(e) { console.error(e); }
                 },
 
@@ -172,24 +207,22 @@
                     this.loadData(this.user);
                 },
 
-                // ФУНКЦІЯ СТВОРЕННЯ КЛІЄНТА
                 async createClient() {
-                    this.clientMsg = "Створення..."; this.clientError = false;
+                    this.createdClientData = null; this.clientError = '';
                     try {
                         const token = await this.user.getIdToken();
                         const res = await fetch('/api/create-client', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                            body: JSON.stringify({ email: this.newClientEmail, password: this.newClientPass })
+                            body: JSON.stringify({ email: this.newClientEmail }) // Пароль не передаємо, сервер сам створить
                         });
                         const data = await res.json();
                         if (data.error) throw new Error(data.error);
                         
-                        this.clientMsg = `✅ Клієнт створений: ${data.email}`;
-                        this.newClientEmail = ''; this.newClientPass = '';
+                        // Показуємо результат (емейл + згенерований пароль)
+                        this.createdClientData = { email: data.email, password: data.password };
                     } catch (e) {
-                        this.clientMsg = "Помилка: " + e.message;
-                        this.clientError = true;
+                        this.clientError = "Помилка: " + e.message;
                     }
                 }
             }
