@@ -22,12 +22,28 @@
 <body x-data="initApp()" x-cloak>
 
     <div x-show="!user" class="container d-flex justify-content-center align-items-center vh-100">
-        <div class="card shadow p-5 text-center" style="max-width: 400px; width: 100%;">
-            <h1 class="mb-4">🔐</h1>
-            <h3 class="mb-4">VDFY Admin</h3>
-            <button @click="loginWithGoogle" class="btn btn-dark w-100 py-3 fw-bold shadow-sm">
-                <i class="bi bi-google me-2"></i> Увійти через Google
-            </button>
+        <div class="card shadow p-5" style="max-width: 400px; width: 100%;">
+            <div class="text-center mb-4">
+                <h1 class="mb-2">🔐</h1>
+                <h3>VDFY Admin</h3>
+                <p class="text-muted">Вхід для адміністратора</p>
+            </div>
+            
+            <form @submit.prevent="loginWithEmail">
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <input type="email" x-model="email" class="form-control" placeholder="admin@vdfy.org" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">Пароль</label>
+                    <input type="password" x-model="password" class="form-control" placeholder="******" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold" :disabled="isLoggingIn">
+                    <span x-show="!isLoggingIn">Увійти</span>
+                    <span x-show="isLoggingIn" class="spinner-border spinner-border-sm"></span>
+                </button>
+            </form>
+            <p x-show="loginError" x-text="loginError" class="text-danger text-center mt-3 small"></p>
         </div>
     </div>
 
@@ -107,6 +123,11 @@
                 user: null,
                 tab: 'dash',
                 videos: [],
+                // Змінні для форми входу
+                email: '',
+                password: '',
+                isLoggingIn: false,
+                loginError: '',
 
                 init() {
                     const check = setInterval(() => {
@@ -120,9 +141,21 @@
                     }, 100);
                 },
 
-                loginWithGoogle() { 
-                    if(!window.authObj) return alert("Секунду, система ініціалізується...");
-                    window.authObj.signInWithPopup(window.authInst, window.providerInst).catch(e => alert(e.message)); 
+                // 👇 НОВА ФУНКЦІЯ ВХОДУ (Email/Pass)
+                async loginWithEmail() { 
+                    if(!window.authObj) return;
+                    this.isLoggingIn = true;
+                    this.loginError = '';
+                    
+                    try {
+                        await window.authObj.signInWithEmailAndPassword(window.authInst, this.email, this.password);
+                        // Якщо успішно - Alpine сам оновить user через onAuthStateChanged
+                    } catch (e) {
+                        console.error(e);
+                        this.loginError = "Невірний email або пароль!";
+                    } finally {
+                        this.isLoggingIn = false;
+                    }
                 },
                 
                 logoutUser() { window.authObj.signOut(window.authInst); },
@@ -152,9 +185,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        // 👇 Ми додали signInWithEmailAndPassword замість Google
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇👇👇 ТУТ МАЮТЬ БУТИ ТВОЇ ПОВНІ КЛЮЧІ З КОНСОЛІ 👇👇👇
+        // 👇👇👇 ОБОВ'ЯЗКОВО ВСТАВ СВОЇ КЛЮЧІ ТУТ 👇👇👇
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -167,8 +201,8 @@
         try {
             const app = initializeApp(firebaseConfig);
             window.authInst = getAuth(app);
-            window.providerInst = new GoogleAuthProvider();
-            window.authObj = { signInWithPopup, signOut, onAuthStateChanged };
+            // window.providerInst більше не потрібен
+            window.authObj = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
             window.firebaseReady = true;
         } catch(e) { console.error(e); }
     </script>

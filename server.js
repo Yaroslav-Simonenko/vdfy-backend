@@ -14,21 +14,25 @@ const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
+
+// 👇👇👇 НАЛАШТУВАННЯ АДМІНА (Фейсконтроль) 👇👇👇
+const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; // <--- ТВОЯ ПОШТА
+
+// 1. ГЛОБАЛЬНІ НАЛАШТУВАННЯ БЕЗПЕКИ (Ставимо на самий верх)
 app.use((req, res, next) => {
-    // Дозволяємо попапам (Google Login) працювати, зберігаючи безпеку
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-    // Вимикаємо ізоляцію ресурсів, щоб картинки і скрипти вантажились вільно
+    // Вимикаємо ізоляцію, щоб адмінка працювала без глюків
+    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
-    // Додатково допомагає з редіректами Google
     res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
     next();
 });
+
 // Базові налаштування
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
-// 🔥 ВАЖЛИВО: Статичні файли (index: false, щоб ми вручну керували головною сторінкою)
+// Статичні файли (index: false, щоб ми вручну керували маршрутами)
 app.use(express.static('public', { index: false }));
 
 // --- FIREBASE & CLOUD CONFIG ---
@@ -52,49 +56,49 @@ const upload = multer({ dest: 'uploads/' });
 // --- HELPERS ---
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 const generateShortId = () => Math.random().toString(36).substring(2, 7);
+
+// 🛡️ ГОЛОВНИЙ ЗАХИСНИК (Перевіряє, чи це ТИ)
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    
     try {
         const decoded = await admin.auth().verifyIdToken(token);
+        
+        // Перевіряємо пошту
+        if (decoded.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+            console.warn(`🛑 Intruder blocked: ${decoded.email}`);
+            return res.status(403).json({ error: 'Access Denied: You are not the admin.' });
+        }
+
         req.user = decoded;
         next();
     } catch (e) { return res.status(403).json({ error: 'Forbidden' }); }
 };
 
 // ==================================================================
-// 🔥🔥🔥 ГОЛОВНІ МАРШРУТИ (РОУТИ) 🔥🔥🔥
+// 🔥🔥🔥 МАРШРУТИ (PAGES) 🔥🔥🔥
 // ==================================================================
 
 app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 
-// 1. НОВА АДМІНКА (/admin) -> ДОЗВОЛЯЄМО POPUPS
 app.get('/admin', (req, res) => {
-    // 👇 ЦЕ ГОЛОВНЕ ВИПРАВЛЕННЯ: Дозволяємо вікна
-    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
-    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-// 2. СТАРИЙ ДЕШБОРД (/dashboard) -> ТЕЖ ДОЗВОЛЯЄМО
 app.get('/dashboard', (req, res) => {
-    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
-    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
     res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
 
-// 3. РЕКОРДЕР (/r/:id) -> ТУТ ЗАХИСТ ЛИШАЄМО (Для FFmpeg)
+// Спеціальний маршрут для рекордера (Повертаємо захист для FFmpeg)
 app.get('/r/:id', (req, res) => {
-    // Перебиваємо глобальні налаштування, бо FFmpeg потребує захисту
-    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.header("Cross-Origin-Embedder-Policy", "require-corp");
+    res.header("Cross-Origin-Opener-Policy", "same-origin");
     res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
 
-// 4. ПЕРЕГЛЯД ВІДЕО (/v/:id)
 app.get('/v/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
 
-// 5. РЕДІРЕКТИ (/s/:id)
 app.get('/s/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -105,8 +109,11 @@ app.get('/s/:id', async (req, res) => {
     } catch (e) { res.status(500).send("Server Error"); }
 });
 
-// ... (Решта API endpoints без змін) ...
-// Отримати інфо про лінк
+// ==================================================================
+// 🔥🔥🔥 API ENDPOINTS 🔥🔥🔥
+// ==================================================================
+
+// Інфо про лінк
 app.get('/api/link-info/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -115,7 +122,7 @@ app.get('/api/link-info/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Server error" }); }
 });
 
-// Shorten
+// Створення короткого лінка
 app.post('/api/shorten', async (req, res) => {
     try {
         const { type, email, formName, longUrl } = req.body;
@@ -134,7 +141,7 @@ app.post('/api/shorten', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Upload with AI
+// Завантаження відео
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = null, compressedPath = null;
@@ -189,7 +196,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// My Videos
+// Список відео (ЗАХИЩЕНО)
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const email = req.user.email.toLowerCase();
@@ -202,7 +209,7 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     } catch (e) { res.json({ videos: [] }); }
 });
 
-// Delete Video
+// Видалення (ЗАХИЩЕНО)
 app.delete('/api/delete-video', verifyToken, async (req, res) => {
     try {
         const videoKey = req.body.videoKey;
@@ -212,6 +219,7 @@ app.delete('/api/delete-video', verifyToken, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Аналіз тексту (ЗАХИЩЕНО)
 app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
@@ -222,9 +230,8 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: "AI Error" }); }
 });
 
+// Створення клієнта (ЗАХИЩЕНО)
 app.post('/api/create-client', verifyToken, async (req, res) => {
-    const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
-    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).json({ error: "Access Denied" });
     try {
         const { email } = req.body;
         const password = Math.random().toString(36).substring(2, 12);
@@ -233,5 +240,6 @@ app.post('/api/create-client', verifyToken, async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Запуск
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 serverInstance.setTimeout(600000);
