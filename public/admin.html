@@ -1,254 +1,208 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VDFY Super Admin</title>
+    <title>VDFY Admin Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-    <style>[x-cloak] { display: none !important; }</style>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <style>
+        .active-tab { border-bottom: 2px solid #2563eb; color: #2563eb; }
+    </style>
 </head>
+<body class="bg-gray-50 min-h-screen">
 
-<body x-data="initApp()" x-cloak class="bg-gray-50 text-slate-800 font-sans h-screen flex overflow-hidden">
-
-    <div x-show="!user" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-100">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border p-8">
-            <h2 class="text-2xl font-bold text-center mb-6 text-blue-600">👑 Admin Login</h2>
-            <form @submit.prevent="loginWithEmail" class="space-y-4">
-                <input type="email" x-model="email" class="w-full px-4 py-3 border rounded-xl" placeholder="admin@vdfy.org" required>
-                <input type="password" x-model="password" class="w-full px-4 py-3 border rounded-xl" placeholder="••••••" required>
-                <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition" :disabled="isLoggingIn">
-                    <span x-show="!isLoggingIn">Увійти</span> <span x-show="isLoggingIn">...</span>
-                </button>
-            </form>
-            <p x-show="loginError" x-text="loginError" class="text-red-500 text-center mt-4"></p>
+    <nav class="bg-white shadow px-6 py-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-blue-600">VDFY Admin</h1>
+        <div class="flex gap-4">
+            <span id="admin-email" class="text-gray-600 text-sm py-2">Loading...</span>
+            <button onclick="logout()" class="text-red-500 hover:text-red-700 text-sm font-bold">Вийти</button>
         </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto mt-6 px-6 border-b border-gray-200 flex gap-6">
+        <button onclick="switchTab('videos')" id="tab-videos" class="pb-3 px-2 font-medium text-gray-500 active-tab">
+            📹 Всі відео
+        </button>
+        <button onclick="switchTab('clients')" id="tab-clients" class="pb-3 px-2 font-medium text-gray-500 hover:text-gray-700">
+            👥 Клієнти
+        </button>
     </div>
 
-    <div x-show="user" class="flex w-full">
-        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0">
-            <div class="p-6 text-white font-bold text-xl border-b border-slate-800">🚀 VDFY Admin</div>
-            <nav class="flex-1 p-4 space-y-2">
-                <a href="#" @click.prevent="tab='media'; currentFolder=null" :class="tab==='media'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
-                    <i class="bi bi-collection-play"></i> Клієнти / Відео
-                </a>
-                <a href="#" @click.prevent="tab='create'" :class="tab==='create'?'bg-blue-600 text-white':''" class="flex items-center gap-3 px-4 py-3 rounded-xl hover:text-white transition">
-                    <i class="bi bi-person-plus"></i> Створити Клієнта
-                </a>
-            </nav>
-            <div class="p-4 border-t border-slate-800 text-xs">
-                <button @click="logoutUser" class="text-red-400 hover:text-white flex gap-2 items-center"><i class="bi bi-box-arrow-right"></i> Вийти</button>
+    <div class="max-w-6xl mx-auto p-6">
+        
+        <div id="view-videos">
+            <h2 class="text-lg font-bold mb-4">Останні завантаження</h2>
+            <div id="video-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <p class="text-gray-400">Завантаження...</p>
             </div>
-        </aside>
+        </div>
 
-        <main class="flex-1 p-8 overflow-y-auto bg-slate-50">
+        <div id="view-clients" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold">Управління користувачами</h2>
+                <button onclick="loadClients()" class="text-blue-600 text-sm">🔄 Оновити</button>
+            </div>
             
-            <div x-show="tab === 'media'">
-                
-                <div x-show="!currentFolder">
-                    <header class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold">📂 Папки Клієнтів</h2>
-                        <button @click="loadData(user)" class="bg-white border px-4 py-2 rounded-lg hover:bg-gray-50">🔄 Оновити</button>
-                    </header>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        <template x-for="client in Object.keys(groupedVideos)" :key="client">
-                            <div @click="currentFolder = client" class="bg-white p-6 rounded-2xl shadow-sm border hover:shadow-md cursor-pointer transition group">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl group-hover:scale-110 transition">
-                                        <i class="bi bi-folder-fill"></i>
-                                    </div>
-                                    <div class="overflow-hidden">
-                                        <h3 class="font-bold text-slate-800 truncate" x-text="client"></h3>
-                                        <p class="text-xs text-slate-500" x-text="groupedVideos[client].length + ' відео'"></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
-                <div x-show="currentFolder">
-                    <header class="flex items-center gap-4 mb-6">
-                        <button @click="currentFolder = null" class="bg-white px-3 py-2 rounded-lg border hover:bg-gray-100">⬅ Назад</button>
-                        <h2 class="text-2xl font-bold flex items-center gap-2">
-                            <span class="text-slate-400">Клієнт:</span> 
-                            <span x-text="currentFolder"></span>
-                        </h2>
-                    </header>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <template x-for="video in groupedVideos[currentFolder]" :key="video.key">
-                            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-                                <div class="aspect-video bg-black relative">
-                                    <video :src="video.url" controls class="w-full h-full object-cover"></video>
-                                </div>
-                                <div class="p-4">
-                                    <h3 class="font-bold truncate" x-text="video.formName"></h3>
-                                    <p class="text-xs text-gray-400 mb-3" x-text="new Date(video.uploadedAt).toLocaleString()"></p>
-                                    <button @click="deleteVid(video.key)" class="text-red-500 text-sm hover:underline">Видалити</button>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
+            <div class="bg-white shadow rounded-lg overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Реєстрація</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Статус</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Дії</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-table" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
             </div>
+        </div>
 
-            <div x-show="tab === 'create'">
-                <h2 class="text-2xl font-bold mb-6">Створити нового клієнта</h2>
-                
-                <div class="bg-white p-8 rounded-2xl shadow-sm border max-w-lg">
-                    <form @submit.prevent="createClient" class="space-y-6" x-show="!createdClientData">
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-2">Email клієнта</label>
-                            <input type="email" x-model="newClientEmail" class="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" required placeholder="client@company.com">
-                            <p class="text-xs text-slate-500 mt-2">ℹ️ Пароль буде згенеровано автоматично.</p>
-                        </div>
-                        <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition">
-                            Згенерувати доступ 🎲
-                        </button>
-                    </form>
-
-                    <div x-show="createdClientData" class="text-center animate-fade-in">
-                        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
-                            <i class="bi bi-check-lg"></i>
-                        </div>
-                        <h3 class="text-xl font-bold text-slate-800 mb-2">Успішно створено!</h3>
-                        <p class="text-slate-500 mb-6">Скопіюйте ці дані та надішліть клієнту:</p>
-                        
-                        <div class="bg-slate-100 p-4 rounded-xl text-left font-mono text-sm border border-slate-200 mb-6">
-                            <div class="mb-2">
-                                <span class="text-slate-400">Login:</span> <br>
-                                <span class="text-slate-900 font-bold text-lg select-all" x-text="createdClientData?.email"></span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400">Password:</span> <br>
-                                <span class="text-blue-600 font-bold text-xl select-all" x-text="createdClientData?.password"></span>
-                            </div>
-                        </div>
-
-                        <button @click="createdClientData = null; newClientEmail = ''" class="text-blue-600 font-bold hover:underline">
-                            + Створити ще одного
-                        </button>
-                    </div>
-
-                    <p x-show="clientError" x-text="clientError" class="mt-4 text-center text-red-500 font-bold"></p>
-                </div>
-            </div>
-
-        </main>
     </div>
 
     <script>
-        const MY_ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
+        // 1. CONFIG (Встав сюди свої дані з Firebase Console -> Project Settings)
+        const firebaseConfig = {
+            apiKey: "ВСТАВ_СВІЙ_API_KEY_З_FRONTEND_КОДУ",
+            authDomain: "vdfy-upload.firebaseapp.com",
+            projectId: "vdfy-upload",
+            storageBucket: "vdfy-upload.firebasestorage.app",
+            messagingSenderId: "381929137400",
+            appId: "1:381929137400:web:..." 
+        };
+        firebase.initializeApp(firebaseConfig);
 
-        function initApp() {
-            return {
-                user: null, tab: 'media', 
-                groupedVideos: {}, currentFolder: null, // Для папок
-                email: '', password: '', isLoggingIn: false, loginError: '',
+        // Перевірка адміна
+        firebase.auth().onAuthStateChanged(async user => {
+            if (!user) return window.location.href = '/dashboard'; // Якщо не ввійшов
+            
+            const token = await user.getIdTokenResult();
+            // Тут проста перевірка на email, сервер перевірить надійніше
+            document.getElementById('admin-email').innerText = user.email;
+            
+            // Завантажуємо дані
+            loadVideos();
+            loadClients();
+        });
+
+        async function logout() {
+            await firebase.auth().signOut();
+            window.location.href = '/dashboard';
+        }
+
+        // --- TABS LOGIC ---
+        function switchTab(tab) {
+            document.getElementById('view-videos').classList.add('hidden');
+            document.getElementById('view-clients').classList.add('hidden');
+            document.getElementById('tab-videos').classList.remove('active-tab');
+            document.getElementById('tab-clients').classList.remove('active-tab');
+
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('active-tab');
+        }
+
+        // --- CLIENTS LOGIC ---
+        async function loadClients() {
+            const user = firebase.auth().currentUser;
+            if (!user) return;
+            const token = await user.getIdToken();
+
+            try {
+                const res = await fetch('/api/admin/users', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
                 
-                // Create Client Vars
-                newClientEmail: '', createdClientData: null, clientError: '',
+                const tbody = document.getElementById('clients-table');
+                tbody.innerHTML = '';
 
-                init() {
-                    const check = setInterval(() => {
-                        if (window.firebaseReady && window.authObj) {
-                            clearInterval(check);
-                            window.authObj.onAuthStateChanged(window.authInst, (u) => {
-                                if (u && u.email.toLowerCase() !== MY_ADMIN_EMAIL.toLowerCase()) {
-                                    alert("⛔ Тільки Адмін має доступ!");
-                                    window.authObj.signOut(window.authInst);
-                                    return;
-                                }
-                                this.user = u;
-                                if (u) this.loadData(u);
-                            });
-                        }
-                    }, 100);
-                },
+                data.users.forEach(u => {
+                    const createdDate = new Date(u.creationTime).toLocaleDateString();
+                    const isBlocked = u.disabled;
+                    
+                    const statusBadge = isBlocked 
+                        ? `<span class="px-2 py-1 text-xs rounded bg-red-100 text-red-800">Заблокований</span>`
+                        : `<span class="px-2 py-1 text-xs rounded bg-green-100 text-green-800">Активний</span>`;
 
-                async loginWithEmail() { 
-                    if(!window.authObj) return;
-                    this.isLoggingIn = true; this.loginError = '';
-                    try { await window.authObj.signInWithEmailAndPassword(window.authInst, this.email, this.password); } 
-                    catch (e) { this.loginError = "Помилка входу."; } 
-                    finally { this.isLoggingIn = false; }
-                },
-                
-                logoutUser() { window.authObj.signOut(window.authInst); },
+                    const btnBlock = isBlocked
+                        ? `<button onclick="toggleUser('${u.uid}', false)" class="text-green-600 hover:text-green-900 mr-3">Розблокувати</button>`
+                        : `<button onclick="toggleUser('${u.uid}', true)" class="text-orange-600 hover:text-orange-900 mr-3">Заблокувати</button>`;
 
-                async loadData(user) {
-                    try {
-                        const token = await user.getIdToken();
-                        const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` }});
-                        const data = await res.json();
-                        
-                        // 🔥 ГРУПУВАННЯ ПО ВЛАСНИКУ (OWNER)
-                        this.groupedVideos = {};
-                        (data.videos || []).forEach(vid => {
-                            const owner = vid.owner || "Other";
-                            if (!this.groupedVideos[owner]) this.groupedVideos[owner] = [];
-                            this.groupedVideos[owner].push(vid);
-                        });
-                        
-                    } catch(e) { console.error(e); }
-                },
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${u.email}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${createdDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            ${btnBlock}
+                            <button onclick="deleteUser('${u.uid}')" class="text-red-600 hover:text-red-900 font-bold">Видалити</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
 
-                async deleteVid(key) {
-                    if(!confirm("Видалити?")) return;
-                    const token = await this.user.getIdToken();
-                    await fetch('/api/delete-video', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ videoKey: key })
-                    });
-                    this.loadData(this.user);
-                },
-
-                async createClient() {
-                    this.createdClientData = null; this.clientError = '';
-                    try {
-                        const token = await this.user.getIdToken();
-                        const res = await fetch('/api/create-client', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                            body: JSON.stringify({ email: this.newClientEmail }) // Пароль не передаємо, сервер сам створить
-                        });
-                        const data = await res.json();
-                        if (data.error) throw new Error(data.error);
-                        
-                        // Показуємо результат (емейл + згенерований пароль)
-                        this.createdClientData = { email: data.email, password: data.password };
-                    } catch (e) {
-                        this.clientError = "Помилка: " + e.message;
-                    }
-                }
+            } catch (e) {
+                console.error(e);
+                alert("Помилка завантаження клієнтів");
             }
         }
-    </script>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        async function toggleUser(uid, shouldBlock) {
+            if(!confirm(shouldBlock ? "Заблокувати користувача?" : "Розблокувати користувача?")) return;
+            
+            const user = firebase.auth().currentUser;
+            const token = await user.getIdToken();
 
-        // 👇 ВСТАВ КЛЮЧІ!
-          const firebaseConfig = {
-    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-    authDomain: "vdfy-auth-system.firebaseapp.com",
-    projectId: "vdfy-auth-system",
-    storageBucket: "vdfy-auth-system.firebasestorage.app",
-    messagingSenderId: "381929137400",
-    appId: "1:381929137400:web:661c3b07907e639fa5070d"
-  };
+            await fetch('/api/admin/toggle-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ uid, disabled: shouldBlock })
+            });
+            loadClients();
+        }
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            window.authInst = getAuth(app);
-            window.authObj = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
-            window.firebaseReady = true;
-        } catch(e) {}
+        async function deleteUser(uid) {
+            if(!confirm("⚠️ ВИДАЛИТИ КОРИСТУВАЧА НАЗАВЖДИ?\nЦю дію не можна скасувати.")) return;
+            
+            const user = firebase.auth().currentUser;
+            const token = await user.getIdToken();
+
+            await fetch('/api/admin/delete-user', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ uid })
+            });
+            loadClients();
+        }
+
+        // --- VIDEOS LOGIC (Стара логіка) ---
+        async function loadVideos() {
+            const user = firebase.auth().currentUser;
+            const token = await user.getIdToken();
+            const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            const container = document.getElementById('video-list');
+            container.innerHTML = '';
+            
+            data.videos.forEach(vid => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded shadow border";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                         <div>
+                            <span class="text-xs font-bold text-blue-600 uppercase">${vid.owner}</span>
+                            <h3 class="font-bold text-gray-800">${vid.formName}</h3>
+                        </div>
+                        <a href="${vid.url}" target="_blank" class="text-blue-500 text-sm underline">Link</a>
+                    </div>
+                    <video src="${vid.url}" controls class="w-full h-40 object-cover rounded bg-black mb-2"></video>
+                    <div class="text-xs text-gray-500">${new Date(vid.uploadedAt).toLocaleString()}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
     </script>
 </body>
 </html>

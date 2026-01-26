@@ -266,7 +266,55 @@ app.post('/api/create-client', verifyToken, async (req, res) => {
         res.json({ success: true, email: userRecord.email, password: password });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// 1. Отримати список усіх юзерів
+app.get('/api/admin/users', verifyToken, async (req, res) => {
+    // Перевірка: чи це Адмін?
+    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+        return res.status(403).json({ error: "Access Denied" });
+    }
 
+    try {
+        // Отримуємо список юзерів з Firebase Auth (макс 1000 за раз)
+        const listUsersResult = await admin.auth().listUsers(1000);
+        const users = listUsersResult.users.map(user => ({
+            uid: user.uid,
+            email: user.email,
+            disabled: user.disabled, // true = заблокований
+            lastSignInTime: user.metadata.lastSignInTime,
+            creationTime: user.metadata.creationTime
+        }));
+        res.json({ users });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 2. Заблокувати / Розблокувати юзера
+app.post('/api/admin/toggle-user', verifyToken, async (req, res) => {
+    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).send();
+
+    try {
+        const { uid, disabled } = req.body; // disabled: true (бан) або false (розбан)
+        await admin.auth().updateUser(uid, { disabled: disabled });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 3. Видалити юзера (назавжди)
+app.delete('/api/admin/delete-user', verifyToken, async (req, res) => {
+    if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).send();
+
+    try {
+        const { uid } = req.body;
+        await admin.auth().deleteUser(uid);
+        // Тут можна додати видалення папки користувача з S3, якщо треба
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 // Запуск
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 serverInstance.setTimeout(600000);
