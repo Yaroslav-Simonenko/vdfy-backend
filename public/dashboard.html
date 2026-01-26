@@ -13,6 +13,44 @@
             --border: #e5e7eb;
         }
         body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; color: var(--text-main); }
+        
+        /* 🔥 BAN OVERLAY 🔥 */
+        .ban-overlay { 
+            position: fixed; inset: 0; background: #dc2626; z-index: 99999; 
+            display: none; align-items: center; justify-content: center; 
+            color: white; text-align: center; 
+        }
+        .ban-box { 
+            background: white; color: #1f2937; padding: 40px; border-radius: 16px; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 500px; width: 90%; 
+        }
+        .ban-reason-box { 
+            background: #f3f4f6; padding: 15px; border-radius: 8px; 
+            border: 1px solid #e5e7eb; margin: 20px 0; font-weight: bold; font-size: 18px; 
+        }
+
+        /* 📜 TRANSCRIPT MODAL (НОВЕ!) 📜 */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000;
+            display: none; align-items: center; justify-content: center; backdrop-filter: blur(2px);
+        }
+        .modal-box {
+            background: white; width: 600px; max-width: 90%; max-height: 80vh;
+            border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .modal-header {
+            padding: 16px 24px; border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            background: #f9fafb;
+        }
+        .modal-body {
+            padding: 24px; overflow-y: auto; font-size: 15px; line-height: 1.6; color: #374151; white-space: pre-wrap;
+        }
+        .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; }
+        .close-btn:hover { color: #111; }
+
+        /* Sidebar & Layout */
         .sidebar { width: 260px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px; flex-shrink: 0; }
         .logo { font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 30px; }
         .nav-item { padding: 12px 16px; margin-bottom: 4px; border-radius: 8px; cursor: pointer; color: var(--text-sec); display: flex; align-items: center; gap: 12px; transition: 0.2s; }
@@ -24,60 +62,38 @@
         .view-section { display: none; }
         .view-section.active { display: block; }
         
-        /* Grid Layouts */
+        /* Grids & Cards */
         .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
         .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px; }
-
-        /* VIDEO CARD */
         .card { background: var(--surface); border-radius: 16px; border: 1px solid var(--border); overflow: hidden; transition: 0.2s; }
         .card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .card-preview { height: 180px; background: #000; position: relative; }
         .card-preview video { width: 100%; height: 100%; object-fit: cover; }
         .card-body { padding: 16px; }
-        .actions { display: flex; gap: 8px; margin-top: 16px; }
+        .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 
-        /* FOLDER CARD */
         .folder-card { 
             background: var(--surface); border-radius: 16px; border: 1px solid var(--border); 
             padding: 24px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; text-align: center;
         }
-        .folder-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: var(--primary); }
+        .folder-card:hover { transform: translateY(-4px); border-color: var(--primary); }
         .folder-icon { font-size: 48px; margin-bottom: 12px; }
         .folder-name { font-weight: 600; font-size: 16px; color: var(--text-main); margin-bottom: 4px; }
         .folder-count { color: var(--text-sec); font-size: 13px; background: #f3f4f6; padding: 4px 10px; border-radius: 20px; }
 
-        /* Buttons & Utils */
-        .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.2s; }
+        /* Buttons */
+        .btn { padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; text-decoration: none; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
-        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline { background: white; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-outline:hover { background: #f9fafb; border-color: #d1d5db; }
         .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
         
         #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
         .hidden { display: none !important; }
-        
-        /* Breadcrumbs */
         .breadcrumb { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
         .back-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-sec); font-weight: 500; }
         .back-btn:hover { color: var(--primary); }
-
-        /* 🔥 BAN OVERLAY STYLES 🔥 */
-        .ban-overlay { 
-            position: fixed; inset: 0; background: #dc2626; z-index: 9999; 
-            display: none; align-items: center; justify-content: center; 
-            color: white; text-align: center; 
-        }
-        .ban-box { 
-            background: white; color: #1f2937; padding: 40px; border-radius: 16px; 
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 500px; width: 90%; 
-        }
-        .ban-title { font-size: 30px; font-weight: 800; color: #dc2626; margin-bottom: 10px; margin-top: 0; }
-        .ban-reason-box { 
-            background: #f3f4f6; padding: 15px; border-radius: 8px; 
-            border: 1px solid #e5e7eb; margin: 20px 0; 
-            font-weight: 500; font-size: 18px; 
-        }
     </style>
 </head>
 <body>
@@ -86,15 +102,19 @@
         <div class="ban-box">
             <div style="font-size: 60px; margin-bottom: 20px;">⛔</div>
             <h2 class="ban-title">Account Suspended</h2>
-            <p style="text-transform: uppercase; font-size: 12px; font-weight: 700; color: #6b7280; letter-spacing: 1px;">Reason:</p>
-            
+            <p style="text-transform: uppercase; font-size: 12px; font-weight: 700; color: #6b7280;">Reason:</p>
             <div id="ban-reason-text" class="ban-reason-box">...</div>
-
-            <p style="color: #4b5563; font-size: 14px; margin-bottom: 30px;">
-                Please contact support if you believe this is an error.
-            </p>
-            
             <button id="ban-logout-btn" class="btn" style="background: #1f2937; color: white; width: 100%; padding: 12px;">Sign Out</button>
+        </div>
+    </div>
+
+    <div id="transcript-overlay" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 style="margin:0; font-weight: 700;">📜 Transcription</h3>
+                <button class="close-btn" onclick="closeTranscript()">×</button>
+            </div>
+            <div id="transcript-body" class="modal-body">Loading...</div>
         </div>
     </div>
 
@@ -105,12 +125,7 @@
 
     <div class="sidebar">
         <div class="logo">🎥 VDFY</div>
-        
-        <div class="id-box">
-            <b>Linked Account:</b><br>
-            <span id="user-email">Loading...</span>
-        </div>
-
+        <div class="id-box"><b>Account:</b><br><span id="user-email">...</span></div>
         <div class="nav-item active" onclick="switchTab('videos')">📁 Recordings</div>
         <div class="nav-item" onclick="switchTab('analytics')">📊 AI Analytics</div>
         <div style="flex-grow:1"></div>
@@ -128,17 +143,12 @@
 
         <div id="tab-videos" class="view-section active">
             <div id="loading" style="text-align: center; display: none;"><br>⏳ Loading...</div>
-            
             <div id="folder-nav" class="breadcrumb hidden">
-                <div class="back-btn" onclick="showFoldersView()">
-                    <span>⬅ Back to Folders</span>
-                </div>
+                <div class="back-btn" onclick="showFoldersView()"><span>⬅ Back to Folders</span></div>
                 <span style="color: #e5e7eb;">|</span>
                 <span id="current-folder-title" style="font-weight: 700;">Form Name</span>
             </div>
-
             <div id="folders-container" class="folder-grid"></div>
-
             <div id="videos-container" class="video-grid hidden"></div>
         </div>
 
@@ -154,7 +164,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇👇👇 УВАГА! ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG 👇👇👇
+        // 👇👇👇 ВСТАВ СВІЙ FIREBASE CONFIG 👇👇👇
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -166,7 +176,6 @@
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-
         let groupedData = {};
 
         const loginScreen = document.getElementById('login-screen');
@@ -177,30 +186,25 @@
 
         document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         
-        // Кнопка виходу на екрані бану і в меню
         const handleLogout = () => signOut(auth).then(() => location.reload());
         document.getElementById('logout-btn').onclick = handleLogout;
         document.getElementById('ban-logout-btn').onclick = handleLogout;
 
+        // AUTH & BAN CHECK
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // 🔥 1. ПЕРЕВІРКА НА БАН ПЕРЕД ЗАВАНТАЖЕННЯМ 🔥
                 try {
                     const banRes = await fetch(`/api/check-ban?email=${user.email}`);
                     const banData = await banRes.json();
-
                     if (banData.isBanned) {
-                        // Якщо бан - показуємо екран і блокуємо все
                         document.getElementById('ban-reason-text').innerText = banData.reason;
                         document.getElementById('ban-overlay').style.display = 'flex';
-                        document.body.style.overflow = 'hidden'; // Заборонити скрол
-                        return; // Зупинити виконання скрипта (не вантажити відео)
+                        document.body.style.overflow = 'hidden'; 
+                        loginScreen.classList.add('hidden');
+                        return; 
                     }
-                } catch (e) {
-                    console.error("Ban check failed:", e);
-                }
+                } catch (e) {}
 
-                // Якщо не забанений - йдемо далі
                 loginScreen.classList.add('hidden');
                 document.getElementById('user-name').textContent = user.displayName;
                 document.getElementById('user-avatar').src = user.photoURL;
@@ -212,68 +216,50 @@
             }
         });
 
-        // --- ЛОГІКА ЗАВАНТАЖЕННЯ ---
         async function loadVideos(user) {
             document.getElementById('loading').style.display = 'block';
-            foldersContainer.innerHTML = "";
-            videosContainer.innerHTML = "";
-            
             try {
                 const token = await user.getIdToken();
-                const res = await fetch('/api/my-videos', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
                 const data = await res.json();
                 
-                // 1. Групуємо відео по папках (formName)
                 groupedData = {};
                 data.videos.forEach(video => {
                     const folderName = video.formName || "General";
-                    if (!groupedData[folderName]) {
-                        groupedData[folderName] = [];
-                    }
+                    if (!groupedData[folderName]) groupedData[folderName] = [];
                     groupedData[folderName].push(video);
                 });
-
-                // 2. Малюємо папки
                 renderFolders();
-
-            } catch (e) {
-                console.error(e);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
+            } catch (e) { console.error(e); } 
+            finally { document.getElementById('loading').style.display = 'none'; }
         }
 
         function renderFolders() {
             foldersContainer.innerHTML = "";
             const folderNames = Object.keys(groupedData);
-
             if (folderNames.length === 0) {
                 foldersContainer.innerHTML = `<p style='text-align:center;width:100%;color:#666;'>No recordings found.</p>`;
                 return;
             }
-
             folderNames.forEach(name => {
                 const count = groupedData[name].length;
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder-card';
-                folderDiv.onclick = () => openFolder(name);
-                folderDiv.innerHTML = `
-                    <div class="folder-icon">📁</div>
-                    <div class="folder-name">${name}</div>
-                    <div class="folder-count">${count} video${count > 1 ? 's' : ''}</div>
-                `;
-                foldersContainer.appendChild(folderDiv);
+                const div = document.createElement('div');
+                div.className = 'folder-card';
+                div.onclick = () => openFolder(name);
+                div.innerHTML = `<div class="folder-icon">📁</div><div class="folder-name">${name}</div><div class="folder-count">${count} videos</div>`;
+                foldersContainer.appendChild(div);
             });
-            
             showFoldersView();
         }
 
         window.openFolder = (folderName) => {
             const videos = groupedData[folderName];
             
-            videosContainer.innerHTML = videos.map(v => `
+            videosContainer.innerHTML = videos.map(v => {
+                // Генеруємо посилання на текст (.txt замість .mp4)
+                const textUrl = v.url.replace(/\.(mp4|webm)$/, '.txt');
+                
+                return `
                 <div class="card">
                     <div class="card-preview"><video controls src="${v.url}"></video></div>
                     <div class="card-body">
@@ -281,18 +267,20 @@
                             ${new Date(v.uploadedAt).toLocaleString()}
                         </div>
                         <div class="actions">
-                            <a href="${v.url}" target="_blank" class="btn btn-outline">Open</a>
-                            <button class="btn btn-primary" onclick="analyzeAI('${v.textUrl}', this)">Analyze AI</button>
+                            <a href="${v.url}" target="_blank" class="btn btn-outline">Play</a>
+                            
+                            <button class="btn btn-outline" onclick="viewTranscript('${textUrl}')">📜 Text</button>
+                            
+                            <button class="btn btn-primary" onclick="analyzeAI('${textUrl}', this)">🤖 AI</button>
                             <button class="btn btn-outline" style="color:#ef4444; border-color:#ef4444;" onclick="deleteVideo('${v.key}')">🗑</button>
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
 
             foldersContainer.classList.add('hidden');
             videosContainer.classList.remove('hidden');
             folderNav.classList.remove('hidden');
-            
             document.getElementById('current-folder-title').innerText = folderName;
             pageTitle.innerText = "Folder: " + folderName;
         };
@@ -302,6 +290,27 @@
             videosContainer.classList.add('hidden');
             folderNav.classList.add('hidden');
             pageTitle.innerText = "My Folders";
+        };
+
+        // --- TRANSCRIPT FUNCTIONS ---
+        window.viewTranscript = async (url) => {
+            const modal = document.getElementById('transcript-overlay');
+            const body = document.getElementById('transcript-body');
+            modal.style.display = 'flex';
+            body.innerText = "Loading transcription...";
+            
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("Transcript not found");
+                const text = await res.text();
+                body.innerText = text;
+            } catch (e) {
+                body.innerText = "No transcription available for this video (or file not found).";
+            }
+        };
+
+        window.closeTranscript = () => {
+            document.getElementById('transcript-overlay').style.display = 'none';
         };
 
         window.deleteVideo = async (videoKey) => {
@@ -316,7 +325,6 @@
         };
 
         window.analyzeAI = async (textUrl, btn) => {
-            if (!textUrl) return alert("Transcript missing (video might be processing)");
             btn.disabled = true; btn.textContent = "Thinking...";
             const token = await auth.currentUser.getIdToken();
             const res = await fetch('/api/analyze-text', {
@@ -327,19 +335,15 @@
             const data = await res.json();
             document.getElementById('ai-content').textContent = data.analysis || "Error generating summary.";
             switchTab('analytics');
-            btn.disabled = false; btn.textContent = "Analyze AI";
+            btn.disabled = false; btn.textContent = "🤖 AI";
         };
 
         window.switchTab = (tab) => {
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
-            
-            if(tab === 'videos') {
-                showFoldersView();
-            } else {
-                pageTitle.innerText = "AI Analytics";
-            }
+            if(tab === 'videos') showFoldersView();
+            else pageTitle.innerText = "AI Analytics";
         };
     </script>
 </body>

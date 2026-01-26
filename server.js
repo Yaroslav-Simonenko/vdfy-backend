@@ -295,25 +295,31 @@ app.get('/api/admin/users', verifyToken, async (req, res) => {
 
 // 2. Заблокувати / Розблокувати юзера
 // 1. Оновлена функція блокування (з причиною)
+// 1. Оновлена функція "М'якого бану"
 app.post('/api/admin/toggle-user', verifyToken, async (req, res) => {
     if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).send();
 
     try {
-        const { uid, disabled, reason } = req.body; // Отримуємо причину
+        const { uid, disabled, reason } = req.body; 
         
-        // 1. Оновлюємо статус в Auth (блокуємо вхід)
-        await admin.auth().updateUser(uid, { disabled: disabled });
+        // 🔥 ВАЖЛИВО: Ми більше НЕ блокуємо через admin.auth().updateUser
+        // Ми тільки записуємо статус у базу даних Firestore
 
-        // 2. Якщо блокуємо - записуємо причину в базу
-        // Якщо розблокуємо - стираємо причину
         if (disabled) {
+            // БАН: Записуємо в базу
             await db.collection('users').doc(uid).set({ 
-                banReason: reason || "Адміністратор обмежив доступ без вказання причини." 
+                isBanned: true,
+                banReason: reason || "Адміністратор обмежив доступ." 
             }, { merge: true });
+            
+            // (Опціонально) Можна розірвати поточні сесії, але дозволити новий вхід
+            // await admin.auth().revokeRefreshTokens(uid); 
         } else {
+            // РОЗБАН: Видаляємо записи
             await db.collection('users').doc(uid).update({ 
+                isBanned: admin.firestore.FieldValue.delete(),
                 banReason: admin.firestore.FieldValue.delete() 
-            }).catch(() => {}); // Ігноруємо помилку, якщо поля не було
+            }).catch(() => {});
         }
 
         res.json({ success: true });
@@ -322,25 +328,23 @@ app.post('/api/admin/toggle-user', verifyToken, async (req, res) => {
     }
 });
 
-// 2. НОВЕ: Перевірка причини бану (Публічний доступ, щоб показати на дашборді)
+// 2. Перевірка статусу (Оновлена)
 app.get('/api/check-ban', async (req, res) => {
     try {
         const { email } = req.query;
-        if (!email) return res.json({ status: 'ok' });
+        if (!email) return res.json({ isBanned: false });
 
-        // Шукаємо юзера
         const user = await admin.auth().getUserByEmail(email);
         
-        if (user.disabled) {
-            // Якщо заблокований - читаємо причину з бази
-            const doc = await db.collection('users').doc(user.uid).get();
-            const reason = doc.exists ? doc.data().banReason : "Доступ обмежено.";
-            return res.json({ isBanned: true, reason: reason });
+        // Читаємо статус ТІЛЬКИ з бази даних
+        const doc = await db.collection('users').doc(user.uid).get();
+        
+        if (doc.exists && doc.data().isBanned) {
+            return res.json({ isBanned: true, reason: doc.data().banReason });
         }
         
         res.json({ isBanned: false });
     } catch (e) {
-        // Якщо юзера немає або помилка - просто пускаємо (або ігноруємо)
         res.json({ isBanned: false });
     }
 });

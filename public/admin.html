@@ -2,92 +2,55 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>VDFY Admin - Restricted Access</title>
+    <title>VDFY Admin - Full Control</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <style>
         .active-tab { border-bottom: 2px solid #2563eb; color: #2563eb; }
-        details > summary { list-style: none; cursor: pointer; }
-        details > summary::-webkit-details-marker { display: none; }
-        /* Анімація для папок */
-        details[open] summary ~ * { animation: sweep .3s ease-in-out; }
-        @keyframes sweep {
-            0%    {opacity: 0; transform: translateY(-10px)}
-            100%  {opacity: 1; transform: translateY(0)}
-        }
+        body { background-color: #f3f4f6; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen font-sans">
+<body class="min-h-screen">
 
     <div id="login-screen" class="flex flex-col items-center justify-center min-h-screen">
-        <div class="bg-white p-8 rounded-lg shadow-lg w-96 border border-gray-200">
-            <div class="flex justify-center mb-6">
-                <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">A</div>
-            </div>
+        <div class="bg-white p-8 rounded-lg shadow-xl w-96">
             <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Admin Access</h2>
-            
             <form onsubmit="handleLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" required class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" required class="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                </div>
-                <div id="login-error" class="text-red-500 text-sm text-center hidden"></div>
-                <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition font-bold">
-                    Увійти в систему
-                </button>
+                <input type="email" id="email" placeholder="Email" required class="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="password" id="password" placeholder="Password" required class="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
+                <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 font-bold">Увійти</button>
             </form>
         </div>
-        <p class="mt-4 text-gray-400 text-sm">Protected Area. IP Logged.</p>
     </div>
 
     <div id="admin-panel" class="hidden">
-        
         <nav class="bg-white shadow px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-blue-600 rounded text-white flex items-center justify-center font-bold">V</div>
-                <h1 class="text-xl font-bold text-gray-800">VDFY Control</h1>
-            </div>
+            <h1 class="text-xl font-bold text-gray-800">VDFY Admin</h1>
             <div class="flex gap-4 items-center">
                 <span id="admin-display-email" class="text-gray-500 text-sm"></span>
-                <button onclick="logout()" class="bg-red-50 text-red-600 border border-red-200 px-4 py-1 rounded hover:bg-red-100 text-sm font-bold">Вихід</button>
+                <button onclick="logout()" class="text-red-600 font-bold text-sm">Вихід</button>
             </div>
         </nav>
 
         <div class="max-w-7xl mx-auto mt-6 px-6 border-b border-gray-300 flex gap-8">
-            <button onclick="switchTab('videos')" id="tab-videos" class="pb-3 px-2 font-medium text-gray-500 active-tab flex items-center gap-2">
-                📂 Папки користувачів
-            </button>
-            <button onclick="switchTab('clients')" id="tab-clients" class="pb-3 px-2 font-medium text-gray-500 hover:text-gray-700 flex items-center gap-2">
-                👥 База клієнтів
-            </button>
+            <button onclick="switchTab('clients')" id="tab-clients" class="pb-3 px-2 font-medium text-gray-500 active-tab">👥 Клієнти</button>
+            <button onclick="switchTab('videos')" id="tab-videos" class="pb-3 px-2 font-medium text-gray-500 hover:text-gray-700">📹 Відео</button>
         </div>
 
         <div class="max-w-7xl mx-auto p-6">
             
-            <div id="view-videos">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-bold text-gray-700">Структура файлів</h2>
-                    <button onclick="loadVideos()" class="text-blue-600 text-sm hover:underline">🔄 Оновити дані</button>
+            <div id="view-clients">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">Список користувачів</h2>
+                    <button onclick="loadClients()" class="text-blue-600 text-sm">🔄 Оновити</button>
                 </div>
-                <div id="folders-container" class="space-y-4">
-                    <p class="text-gray-400">Завантаження...</p>
-                </div>
-            </div>
-
-            <div id="view-clients" class="hidden">
                 <div class="bg-white shadow rounded-lg overflow-hidden">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Користувач</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Дата реєстрації</th>
-                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Статус</th>
-                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Управління</th>
+                                <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Email</th>
+                                <th class="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Дії (Бан)</th>
                             </tr>
                         </thead>
                         <tbody id="clients-table" class="bg-white divide-y divide-gray-200"></tbody>
@@ -95,11 +58,16 @@
                 </div>
             </div>
 
+            <div id="view-videos" class="hidden">
+                <h2 class="text-lg font-bold mb-4">Всі завантаження</h2>
+                <div id="videos-container" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+            </div>
+
         </div>
     </div>
 
     <script>
-        // 👇👇👇 ВСТАВ СЮДИ СВОЇ ДАНІ (ТІ САМІ ЩО В DASHBOARD) 👇👇👇
+        // 👇👇👇 ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG 👇👇👇
          const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -108,63 +76,36 @@
     messagingSenderId: "381929137400",
     appId: "1:381929137400:web:661c3b07907e639fa5070d"
   };
-        // 👆👆👆
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
 
-        // 1. АВТОМАТИЧНА ПЕРЕВІРКА ПРИ ЗАВАНТАЖЕННІ
         auth.onAuthStateChanged(user => {
             if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-                // Якщо це адмін - показуємо панель
                 showAdminPanel(user);
             } else {
-                // Якщо це не адмін або ніхто - показуємо вхід
                 showLoginScreen();
-                if (user) {
-                    console.warn("Unauthorized access attempt by:", user.email);
-                    auth.signOut(); // Викидаємо чужаків
-                }
             }
         });
 
-        // 2. ЛОГІКА ВХОДУ (LOGIN)
         async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const btn = document.getElementById('login-btn');
-            const err = document.getElementById('login-error');
-
-            btn.innerText = "Перевірка...";
-            err.classList.add('hidden');
-
-            try {
-                // Перевірка: чи це взагалі адмінська пошта?
-                if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
-                    throw new Error("Ця пошта не має прав адміністратора.");
-                }
-
-                await auth.signInWithEmailAndPassword(email, password);
-                // onAuthStateChanged спрацює автоматично і відкриє панель
             
-            } catch (error) {
-                console.error(error);
-                err.innerText = "Помилка: " + error.message;
-                err.classList.remove('hidden');
-                btn.innerText = "Увійти в систему";
-            }
+            if(email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return alert("Немає доступу");
+
+            try { await auth.signInWithEmailAndPassword(email, password); } 
+            catch (e) { alert(e.message); }
         }
 
         function showAdminPanel(user) {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
             document.getElementById('admin-display-email').innerText = user.email;
-            
-            // Завантажуємо дані
-            loadVideos(); 
             loadClients();
+            loadVideos();
         }
 
         function showLoginScreen() {
@@ -172,144 +113,83 @@
             document.getElementById('login-screen').classList.remove('hidden');
         }
 
-        async function logout() {
-            await auth.signOut();
-            window.location.reload();
+        async function logout() { await auth.signOut(); location.reload(); }
+
+        // --- ЛОГІКА КЛІЄНТІВ ---
+        async function loadClients() {
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+            const data = await res.json();
+            const tbody = document.getElementById('clients-table');
+            tbody.innerHTML = '';
+
+            data.users.forEach(u => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-900">${u.email}</td>
+                        <td class="px-6 py-4 text-right text-sm">
+                            <button onclick="banUser('${u.uid}')" class="bg-red-500 text-white px-3 py-1 rounded font-bold text-xs mr-2 hover:bg-red-600">ЗАБАНИТИ</button>
+                            <button onclick="unbanUser('${u.uid}')" class="bg-gray-200 text-gray-700 px-3 py-1 rounded font-bold text-xs hover:bg-gray-300">РОЗБАНИТИ</button>
+                        </td>
+                    </tr>
+                `;
+            });
         }
 
-        // 3. ЛОГІКА ПАПОК (ВІДЕО)
+        async function banUser(uid) {
+            const reason = prompt("Вкажіть причину бану:", "Порушення правил");
+            if(reason === null) return;
+            const token = await auth.currentUser.getIdToken();
+            await fetch('/api/admin/toggle-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ uid, disabled: true, reason })
+            });
+            alert("Забанено!");
+        }
+
+        async function unbanUser(uid) {
+            if(!confirm("Розбанити?")) return;
+            const token = await auth.currentUser.getIdToken();
+            await fetch('/api/admin/toggle-user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ uid, disabled: false })
+            });
+            alert("Розбанено!");
+        }
+
+        // --- ЛОГІКА ВІДЕО ---
         async function loadVideos() {
             const token = await auth.currentUser.getIdToken();
             const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
-            
-            // ГРУПУВАННЯ ПО ЮЗЕРАХ (ВЛАСНИКАХ)
-            const grouped = {};
-            data.videos.forEach(vid => {
-                if (!grouped[vid.owner]) grouped[vid.owner] = [];
-                grouped[vid.owner].push(vid);
-            });
-
-            const container = document.getElementById('folders-container');
+            const container = document.getElementById('videos-container');
             container.innerHTML = '';
-
-            // Рендер кожної "Папки"
-            Object.keys(grouped).forEach(owner => {
-                const videos = grouped[owner];
-                const folder = document.createElement('details');
-                folder.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group";
-                
-                let videosHTML = `<div class="p-4 bg-gray-50 grid grid-cols-1 md:grid-cols-3 gap-4">`;
-                videos.forEach(vid => {
-                    videosHTML += `
-                        <div class="bg-white p-3 rounded shadow border border-gray-100">
-                            <div class="flex justify-between mb-2">
-                                <span class="text-xs font-bold text-gray-600 truncate w-32">${vid.formName}</span>
-                                <a href="${vid.url}" target="_blank" class="text-blue-500 text-xs">Play ▶</a>
-                            </div>
-                            <video src="${vid.url}" controls class="w-full h-24 bg-black rounded"></video>
-                            <div class="mt-2 flex justify-end">
-                                <button onclick="deleteVideo('${vid.key}')" class="text-red-500 text-xs hover:text-red-700">🗑 Видалити</button>
-                            </div>
+            
+            data.videos.forEach(v => {
+                container.innerHTML += `
+                    <div class="bg-white p-4 rounded shadow">
+                        <div class="flex justify-between mb-2">
+                            <span class="text-xs font-bold text-blue-600 truncate w-2/3">${v.owner}</span>
+                            <button onclick="deleteVideo('${v.key}')" class="text-red-500 text-xs font-bold">ВИДАЛИТИ</button>
                         </div>
-                    `;
-                });
-                videosHTML += `</div>`;
-
-                folder.innerHTML = `
-                    <summary class="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition select-none">
-                        <div class="flex items-center gap-3">
-                            <span class="text-2xl">📁</span>
-                            <div>
-                                <h3 class="font-bold text-gray-800">${owner}</h3>
-                                <p class="text-xs text-gray-500">${videos.length} файлів</p>
-                            </div>
-                        </div>
-                        <span class="text-gray-400 transform group-open:rotate-180 transition">▼</span>
-                    </summary>
-                    ${videosHTML}
+                        <video src="${v.url}" controls class="w-full h-32 bg-black rounded"></video>
+                        <p class="text-xs text-gray-500 mt-2">${v.formName}</p>
+                    </div>
                 `;
-                container.appendChild(folder);
             });
         }
-
+        
         async function deleteVideo(key) {
-            if(!confirm("Видалити відео?")) return;
+            if(!confirm("Видалити?")) return;
             const token = await auth.currentUser.getIdToken();
             await fetch('/api/delete-video', {
                  method: 'DELETE',
                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                  body: JSON.stringify({ videoKey: key })
             });
-            loadVideos(); // Перезавантажити список
-        }
-
-        // 4. КЛІЄНТИ (Логіка без змін, але прихована за табом)
-        async function loadClients() {
-            const token = await auth.currentUser.getIdToken();
-            try {
-                const res = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
-                const data = await res.json();
-                const tbody = document.getElementById('clients-table');
-                tbody.innerHTML = '';
-
-                data.users.forEach(u => {
-                    const isBlocked = u.disabled;
-                    const btnClass = isBlocked ? "text-green-600" : "text-orange-600";
-                    const btnText = isBlocked ? "Розблокувати" : "Заблокувати";
-                    const status = isBlocked ? '<span class="text-red-600 font-bold bg-red-100 px-2 rounded">BANNED</span>' : '<span class="text-green-600 font-bold bg-green-100 px-2 rounded">Active</span>';
-
-                    tbody.innerHTML += `
-                        <tr>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900">${u.email}</td>
-                            <td class="px-6 py-4 text-sm text-gray-500">${new Date(u.creationTime).toLocaleDateString()}</td>
-                            <td class="px-6 py-4 text-sm">${status}</td>
-                            <td class="px-6 py-4 text-right text-sm">
-                                <button onclick="toggleUser('${u.uid}', ${!isBlocked})" class="${btnClass} font-bold mr-4">${btnText}</button>
-                                <button onclick="deleteUser('${u.uid}')" class="text-red-600 font-bold">Видалити</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-            } catch(e) { console.error(e); }
-        }
-
-        async function toggleUser(uid, shouldBlock) {
-    let reason = "";
-
-    if (shouldBlock) {
-        // Запитуємо причину
-        reason = prompt("Вкажіть причину блокування (або залиште пустим):");
-        if (reason === null) return; // Якщо натиснув "Скасувати" - нічого не робимо
-        if (reason.trim() === "") reason = "Без причини";
-    } else {
-        if (!confirm("Розблокувати цього користувача?")) return;
-    }
-    
-    const user = firebase.auth().currentUser;
-    const token = await user.getIdToken();
-
-    try {
-        await fetch('/api/admin/toggle-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ uid, disabled: shouldBlock, reason: reason })
-        });
-        loadClients(); // Оновлюємо таблицю
-    } catch (e) {
-        alert("Помилка: " + e.message);
-    }
-}
-
-        async function deleteUser(uid) {
-            if(!confirm("Видалити юзера назавжди?")) return;
-            const token = await auth.currentUser.getIdToken();
-            await fetch('/api/admin/delete-user', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ uid })
-            });
-            loadClients();
+            loadVideos();
         }
 
         function switchTab(tab) {
