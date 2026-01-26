@@ -274,15 +274,32 @@
             } catch(e) { console.error(e); }
         }
 
-        async function toggleUser(uid, disable) {
-            const token = await auth.currentUser.getIdToken();
-            await fetch('/api/admin/toggle-user', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ uid, disabled: disable })
-            });
-            loadClients();
-        }
+        async function toggleUser(uid, shouldBlock) {
+    let reason = "";
+
+    if (shouldBlock) {
+        // Запитуємо причину
+        reason = prompt("Вкажіть причину блокування (або залиште пустим):");
+        if (reason === null) return; // Якщо натиснув "Скасувати" - нічого не робимо
+        if (reason.trim() === "") reason = "Без причини";
+    } else {
+        if (!confirm("Розблокувати цього користувача?")) return;
+    }
+    
+    const user = firebase.auth().currentUser;
+    const token = await user.getIdToken();
+
+    try {
+        await fetch('/api/admin/toggle-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ uid, disabled: shouldBlock, reason: reason })
+        });
+        loadClients(); // Оновлюємо таблицю
+    } catch (e) {
+        alert("Помилка: " + e.message);
+    }
+}
 
         async function deleteUser(uid) {
             if(!confirm("Видалити юзера назавжди?")) return;

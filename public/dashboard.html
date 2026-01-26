@@ -52,6 +52,7 @@
         .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
         .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
         .id-box { background: #e0f2fe; color: #0369a1; padding: 12px; border-radius: 8px; font-size: 11px; margin-bottom: 20px; word-break: break-all; }
+        
         #login-screen { position: fixed; inset: 0; background: var(--surface); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         #login-btn { width: auto; min-width: 200px; padding: 12px 24px; font-size: 16px; }
         .hidden { display: none !important; }
@@ -60,9 +61,42 @@
         .breadcrumb { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
         .back-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-sec); font-weight: 500; }
         .back-btn:hover { color: var(--primary); }
+
+        /* 🔥 BAN OVERLAY STYLES 🔥 */
+        .ban-overlay { 
+            position: fixed; inset: 0; background: #dc2626; z-index: 9999; 
+            display: none; align-items: center; justify-content: center; 
+            color: white; text-align: center; 
+        }
+        .ban-box { 
+            background: white; color: #1f2937; padding: 40px; border-radius: 16px; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); max-width: 500px; width: 90%; 
+        }
+        .ban-title { font-size: 30px; font-weight: 800; color: #dc2626; margin-bottom: 10px; margin-top: 0; }
+        .ban-reason-box { 
+            background: #f3f4f6; padding: 15px; border-radius: 8px; 
+            border: 1px solid #e5e7eb; margin: 20px 0; 
+            font-weight: 500; font-size: 18px; 
+        }
     </style>
 </head>
 <body>
+
+    <div id="ban-overlay" class="ban-overlay">
+        <div class="ban-box">
+            <div style="font-size: 60px; margin-bottom: 20px;">⛔</div>
+            <h2 class="ban-title">Account Suspended</h2>
+            <p style="text-transform: uppercase; font-size: 12px; font-weight: 700; color: #6b7280; letter-spacing: 1px;">Reason:</p>
+            
+            <div id="ban-reason-text" class="ban-reason-box">...</div>
+
+            <p style="color: #4b5563; font-size: 14px; margin-bottom: 30px;">
+                Please contact support if you believe this is an error.
+            </p>
+            
+            <button id="ban-logout-btn" class="btn" style="background: #1f2937; color: white; width: 100%; padding: 12px;">Sign Out</button>
+        </div>
+    </div>
 
     <div id="login-screen">
         <div class="logo">🎥 VDFY</div>
@@ -120,7 +154,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // 👇 ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG
+        // 👇👇👇 УВАГА! ВСТАВ СЮДИ СВІЙ FIREBASE CONFIG 👇👇👇
         const firebaseConfig = {
     apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
     authDomain: "vdfy-auth-system.firebaseapp.com",
@@ -133,7 +167,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // Глобальна змінна для зберігання згрупованих відео
         let groupedData = {};
 
         const loginScreen = document.getElementById('login-screen');
@@ -143,10 +176,31 @@
         const pageTitle = document.getElementById('page-title');
 
         document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
-        document.getElementById('logout-btn').onclick = () => signOut(auth);
+        
+        // Кнопка виходу на екрані бану і в меню
+        const handleLogout = () => signOut(auth).then(() => location.reload());
+        document.getElementById('logout-btn').onclick = handleLogout;
+        document.getElementById('ban-logout-btn').onclick = handleLogout;
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             if (user) {
+                // 🔥 1. ПЕРЕВІРКА НА БАН ПЕРЕД ЗАВАНТАЖЕННЯМ 🔥
+                try {
+                    const banRes = await fetch(`/api/check-ban?email=${user.email}`);
+                    const banData = await banRes.json();
+
+                    if (banData.isBanned) {
+                        // Якщо бан - показуємо екран і блокуємо все
+                        document.getElementById('ban-reason-text').innerText = banData.reason;
+                        document.getElementById('ban-overlay').style.display = 'flex';
+                        document.body.style.overflow = 'hidden'; // Заборонити скрол
+                        return; // Зупинити виконання скрипта (не вантажити відео)
+                    }
+                } catch (e) {
+                    console.error("Ban check failed:", e);
+                }
+
+                // Якщо не забанений - йдемо далі
                 loginScreen.classList.add('hidden');
                 document.getElementById('user-name').textContent = user.displayName;
                 document.getElementById('user-avatar').src = user.photoURL;
@@ -154,6 +208,7 @@
                 loadVideos(user);
             } else {
                 loginScreen.classList.remove('hidden');
+                document.getElementById('ban-overlay').style.display = 'none';
             }
         });
 
@@ -173,7 +228,6 @@
                 // 1. Групуємо відео по папках (formName)
                 groupedData = {};
                 data.videos.forEach(video => {
-                    // Якщо formName пустий, кидаємо в "General"
                     const folderName = video.formName || "General";
                     if (!groupedData[folderName]) {
                         groupedData[folderName] = [];
@@ -213,14 +267,12 @@
                 foldersContainer.appendChild(folderDiv);
             });
             
-            // Показуємо папки, ховаємо відео
             showFoldersView();
         }
 
         window.openFolder = (folderName) => {
             const videos = groupedData[folderName];
             
-            // Заповнюємо сітку відео
             videosContainer.innerHTML = videos.map(v => `
                 <div class="card">
                     <div class="card-preview"><video controls src="${v.url}"></video></div>
@@ -237,7 +289,6 @@
                 </div>
             `).join('');
 
-            // UI перемикання
             foldersContainer.classList.add('hidden');
             videosContainer.classList.remove('hidden');
             folderNav.classList.remove('hidden');
@@ -253,8 +304,6 @@
             pageTitle.innerText = "My Folders";
         };
 
-        // --- ІНШІ ФУНКЦІЇ (Delete, AI) ---
-        
         window.deleteVideo = async (videoKey) => {
             if (!confirm("Delete this recording?")) return;
             const token = await auth.currentUser.getIdToken();
@@ -263,7 +312,6 @@
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ videoKey })
             });
-            // Перезавантажуємо все
             loadVideos(auth.currentUser);
         };
 
@@ -287,7 +335,6 @@
             document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             
-            // Якщо перемикаємось на відео, скидаємо на вигляд папок
             if(tab === 'videos') {
                 showFoldersView();
             } else {
