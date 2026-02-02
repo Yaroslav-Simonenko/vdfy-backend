@@ -14,7 +14,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const app = express();
 const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
 
-// ✅ СПЕЦІАЛЬНИЙ ЗАХИСТ ДЛЯ RECORDER (щоб працював FFmpeg)
+// ✅ ІЗОЛЯЦІЯ (Тільки для Рекордера)
 const enableIsolation = (req, res, next) => {
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
     res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
@@ -25,20 +25,10 @@ app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
-// Статичні файли
-app.use(express.static('public', { index: false }));
-
-// --- FIREBASE & CLOUD SETUP ---
+// --- FIREBASE & CLOUD ---
 let serviceAccount;
-try { 
-    serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT 
-        ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) 
-        : require('./serviceAccountKey.json'); 
-} catch(e) {}
-
-if (serviceAccount && !admin.apps.length) {
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-}
+try { serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) : require('./serviceAccountKey.json'); } catch(e) {}
+if (serviceAccount && !admin.apps.length) admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 const s3 = new S3Client({
@@ -49,7 +39,6 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ dest: 'uploads/' });
 const sanitize = (str) => str.replace(/[^a-zA-Z0-9а-яА-ЯёЁіІїЇєЄ\-_ ]/g, '').trim();
 
-// Middleware авторизації
 const verifyToken = async (req, res, next) => {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
@@ -57,30 +46,41 @@ const verifyToken = async (req, res, next) => {
     catch (e) { return res.status(403).json({ error: 'Forbidden' }); }
 };
 
-// ================= ROUTING (МАРШРУТИЗАЦІЯ) =================
+// ==================================================================
+// 🔥 ВИПРАВЛЕНИЙ ПОРЯДОК МАРШРУТІВ (Це вирішує ваші помилки) 🔥
+// ==================================================================
 
-app.get('/', (req, res) => res.send('✅ VDFY Server Running'));
+app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 
-// Сторінки
-app.get('/admin.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
-app.get('/dashboard.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'dashboard.html')));
-app.get('/watch.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'watch.html')));
-
-// 🔥 ГОЛОВНА ЗМІНА: recorder.html віддається з заголовками безпеки
+// 1. RECORDER: Обов'язково з enableIsolation (Вирішує помилку SharedArrayBuffer)
 app.get('/recorder.html', enableIsolation, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'recorder.html'));
 });
-
-// Старий формат (redirect на новий для сумісності)
+// Підтримка старих посилань
 app.get('/r/:id', (req, res) => res.redirect(`/recorder.html#id=${req.params.id}`));
 
+// 2. DASHBOARD & ADMIN: БЕЗ ізоляції (Вирішує проблему чорних відео)
+app.get('/dashboard.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+app.get('/admin.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+app.get('/watch.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
+});
 
-// ================= API ENDPOINTS =================
+// 3. СТАТИКА: Всі інші файли (css, js, png) віддаємо тут.
+// Важливо: це має бути ПІСЛЯ явних маршрутів вище.
+app.use(express.static('public', { index: false }));
 
-// 1. СИНХРОНІЗАЦІЯ (Приймаємо ID від розширення)
+
+// ================= API =================
+
 app.post('/api/sync-link', async (req, res) => {
     try {
         const { shortId, email, formName, fullUrl, createdAt } = req.body;
+        // Записуємо лінк. Перевірка на дублікати не потрібна, ID унікальний.
         await db.collection('shortLinks').doc(shortId).set({
             url: fullUrl, type: 'recorder', email, formName: formName || "General", 
             createdAt: createdAt || admin.firestore.FieldValue.serverTimestamp()
@@ -89,7 +89,6 @@ app.post('/api/sync-link', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// 2. ІНФО ПРО ЛІНК (Для recorder.html)
 app.get('/api/link-info/:id', async (req, res) => {
     try {
         const doc = await db.collection('shortLinks').doc(req.params.id).get();
@@ -98,36 +97,30 @@ app.get('/api/link-info/:id', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Server error" }); }
 });
 
-// 3. ЗАВАНТАЖЕННЯ + ШІ
 app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     req.setTimeout(600000); 
     let tempPath = req.file?.path;
     let compressedPath = tempPath + '_compressed.mp4';
-    
     try {
         if (!req.file) throw new Error("No file");
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
         const formName = sanitize(decodeURIComponent(req.body.subfolder || "General"));
         
-        // FFmpeg Conversion
         if (req.file.mimetype === 'video/mp4') fs.copyFileSync(tempPath, compressedPath);
         else await new Promise((resolve, reject) => {
             ffmpeg(tempPath).outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac']).save(compressedPath).on('end', resolve).on('error', reject);
         });
 
-        // Whisper AI
         let transcriptionText = "";
         try {
             const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(compressedPath), model: "whisper-1" });
             transcriptionText = transcription.text;
         } catch (e) { console.error("Whisper fail", e); }
 
-        // Upload to R2
         const r2Key = `users/${ownerEmail.replace(/[@.]/g, '_')}/${formName}/rec_${Date.now()}.mp4`;
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key.replace('.mp4', '.txt'), Body: transcriptionText, ContentType: "text/plain" }));
 
-        // Save Result Link
         const shortId = Math.random().toString(36).substring(2, 8); 
         await db.collection('shortLinks').doc(shortId).set({
             url: `${process.env.R2_PUBLIC_URL}/${r2Key}`, type: 'video', email: ownerEmail, formName, 
@@ -136,7 +129,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
 
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
-
         res.json({ publicUrl: `https://${req.headers.host}/v/${shortId}`, transcription: transcriptionText });
     } catch (e) { 
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -144,7 +136,6 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
     }
 });
 
-// 4. СПИСОК ВІДЕО
 app.get('/api/my-videos', verifyToken, async (req, res) => {
     try {
         const email = req.user.email.toLowerCase();
@@ -161,7 +152,6 @@ app.get('/api/my-videos', verifyToken, async (req, res) => {
     } catch (e) { res.json({ videos: [] }); }
 });
 
-// 5. ADMIN UTILS (Soft Ban)
 app.post('/api/admin/toggle-user', verifyToken, async (req, res) => {
     if (req.user.email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return res.status(403).send();
     try {
