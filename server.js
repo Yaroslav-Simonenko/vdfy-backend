@@ -80,13 +80,43 @@ app.use(express.static('public', { index: false }));
 app.post('/api/sync-link', async (req, res) => {
     try {
         const { shortId, email, formName, fullUrl, createdAt } = req.body;
-        // Записуємо лінк. Перевірка на дублікати не потрібна, ID унікальний.
+
+        // 👇 НОВА МАГІЯ: Перевіряємо, чи є юзер у Firebase. Якщо ні — створюємо.
+        try {
+            await admin.auth().getUserByEmail(email);
+        } catch (e) {
+            if (e.code === 'auth/user-not-found') {
+                console.log(`🆕 Creating new user in Firebase: ${email}`);
+                const newUser = await admin.auth().createUser({
+                    email: email,
+                    emailVerified: true,
+                    displayName: email.split('@')[0] // Тимчасове ім'я до знака @
+                });
+                
+                // Додаємо запис у Firestore (щоб можна було банити)
+                await db.collection('users').doc(newUser.uid).set({
+                    email: email,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    isBanned: false
+                });
+            }
+        }
+        // 👆 КІНЕЦЬ МАГІЇ
+
+        // Записуємо саме посилання
         await db.collection('shortLinks').doc(shortId).set({
-            url: fullUrl, type: 'recorder', email, formName: formName || "General", 
+            url: fullUrl, 
+            type: 'recorder', 
+            email, 
+            formName: formName || "General", 
             createdAt: createdAt || admin.firestore.FieldValue.serverTimestamp()
         });
+        
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { 
+        console.error("Sync error:", e);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
 app.get('/api/link-info/:id', async (req, res) => {
