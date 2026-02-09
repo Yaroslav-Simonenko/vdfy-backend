@@ -1,269 +1,231 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <base href="/"> 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VDFY Recorder</title>
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.0/dist/ffmpeg.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #6366F1; --danger: #ef4444; --success: #10b981; --bg: #F3F4F6; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; box-sizing: border-box; }
-        .container { width: 100%; max-width: 500px; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display: none; flex-direction: column; gap: 20px; text-align: center; }
-        h2 { margin: 0 0 5px 0; color: #111827; font-size: 22px; }
-        p { margin: 0; color: #6b7280; font-size: 14px; }
-        .tabs { display: flex; background: #f3f4f6; padding: 4px; border-radius: 12px; margin-bottom: 5px; }
-        .tab { flex: 1; border: none; background: transparent; padding: 10px; border-radius: 10px; font-weight: 600; color: #6b7280; cursor: pointer; transition: 0.2s; }
-        .tab.active { background: white; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .media-wrapper { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 16px; overflow: hidden; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        .audio-visual { display: none; width: 100%; height: 100%; background: #1e1b4b; flex-direction: column; align-items: center; justify-content: center; }
-        .mic-circle { width: 60px; height: 60px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; }
-        .recording .mic-circle { background: var(--danger); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
-        .timer { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 14px; z-index: 10; }
-        .controls { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-        button { width: 100%; padding: 16px; border-radius: 14px; border: none; font-weight: 600; font-size: 16px; cursor: pointer; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
-        button:active { transform: scale(0.98); }
-        .btn-rec { background: var(--danger); color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
-        .btn-stop { background: #374151; color: white; }
-        .btn-send { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
-        .btn-sec { background: #f3f4f6; color: #374151; }
-        .btn-copy { background: var(--success); color: white; }
+        body { font-family: 'Inter', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f3f4f6; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); text-align: center; width: 90%; max-width: 420px; }
+        h1 { margin: 0 0 10px; font-size: 20px; color: #111827; }
+        p { color: #6b7280; font-size: 14px; margin-bottom: 20px; }
+        
+        video { width: 100%; border-radius: 8px; background: #000; display: none; margin-bottom: 15px; transform: scaleX(-1); }
+        
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background 0.2s; width: 100%; margin-top: 10px; }
+        .btn-primary { background-color: #2563eb; color: white; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #ef4444; color: white; display: none; }
+        .btn-success { background-color: #10b981; color: white; display: none; }
+        
+        /* Кнопка закриття */
+        .btn-close { background-color: #fee2e2; color: #991b1b; margin-top: 15px; }
+        .btn-close:hover { background-color: #fecaca; }
+
+        .status { margin-top: 15px; font-size: 14px; color: #4b5563; min-height: 20px; }
+        
+        /* Success Screen */
+        #success-screen { display: none; }
         .link-box { display: flex; gap: 8px; margin-top: 15px; }
-        .link-input { flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 16px; color: #374151; background: #f9fafb; outline: none; }
-        #loader { text-align: center; color: #6b7280; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .hidden { display: none !important; }
-        #status { font-size: 14px; margin-top: 15px; font-weight: 500; }
-        @media (max-width: 480px) { .container { padding: 20px; width: 100%; border-radius: 16px; } h2 { font-size: 20px; } .link-box { flex-direction: column; } .btn-copy { width: 100%; } }
+        input[type="text"] { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; outline: none; }
+        .copy-btn { background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .copy-btn:hover { background: #059669; }
+
+        .confetti { font-size: 40px; display: block; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div id="loader">
-    <div class="spinner"></div>
-    <p id="loader-text">Loading system...</p>
-</div>
-
-<div class="container" id="app">
-    <header id="mainHeader">
-        <h2 id="formName">Video Response</h2>
-        <p>Record your answer below</p>
-    </header>
-
-    <div id="successView" class="hidden">
-        <div style="font-size: 60px; margin-bottom: 10px;">🎉</div>
-        <h2>Upload Complete!</h2>
-        <p>Copy the link and paste it into the Google Form.</p>
-        <div class="link-box">
-            <input type="text" id="shareLink" class="link-input" readonly onclick="this.select()">
-            <button class="btn-copy" onclick="copyLink()" style="width: auto; min-width: 80px;">Copy</button>
-        </div>
-        <a id="watchBtn" href="#" target="_blank" style="display: block; margin-top: 25px; color: var(--primary); text-decoration: none; font-weight: 600; padding: 10px; border-radius: 8px; background: #eff6ff;">👀 Check my recording</a>
-        <button class="btn-sec" onclick="location.reload()" style="margin-top: 15px;">Record Another</button>
-    </div>
-
-    <div id="recordingInterface">
-        <div class="tabs">
-            <button class="tab active" onclick="switchMode('video')">Video</button>
-            <button class="tab" onclick="switchMode('audio')">Audio Only</button>
-        </div>
-
-        <div class="media-wrapper">
-            <div class="timer" id="timer">00:00</div>
-            <video id="preview" autoplay muted playsinline></video>
-            <div id="audioVisualizer" class="audio-visual">
-                <div class="mic-circle">🎤</div>
-                <div style="color:white; margin-top:10px; font-size:12px;">Microphone Active</div>
-            </div>
-            <audio id="audioReview" controls style="display:none; width:90%; position:absolute; bottom:20px; z-index:20;"></audio>
-        </div>
-
-        <div id="controls-init" class="controls">
-            <button class="btn-rec" onclick="startRec()">● Start Recording</button>
-        </div>
-        <div id="controls-active" class="controls hidden">
-            <button class="btn-stop" onclick="stopRec()">⏹ Stop Recording</button>
-        </div>
-        <div id="controls-review" class="controls hidden">
-            <button class="btn-send" id="sendBtn" onclick="processAndUpload()">🚀 Send Response</button>
-            <button class="btn-sec" onclick="location.reload()">🔄 Retake</button>
-        </div>
-        <div id="status"></div>
-    </div>
-</div>
-
-<script>
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true });
-    
-    let stream, recorder, chunks = [], seconds = 0, timerInterval;
-    let targetEmail = "", formTitle = "";
-    let currentMode = 'video';
-
-    // ✅ ОНОВЛЕНА ФУНКЦІЯ ІНІЦІАЛІЗАЦІЇ (Підтримує #id=...)
-    async function init() {
-        let id = "";
+    <div class="container" id="recorder-screen">
+        <h1 id="form-title">📹 Video Response</h1>
+        <p>Click below to start recording your answer.</p>
         
-        // 1. Спочатку шукаємо ID в хеші (Новий стандарт для Розширення)
-        // URL: /recorder.html#id=abc-123
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        if (hashParams.has('id')) {
-            id = hashParams.get('id');
-        } else {
-            // 2. Якщо хешу немає, шукаємо в шляху (Старий стандарт)
-            // URL: /r/abc-123
+        <video id="preview" autoplay muted playsinline></video>
+        
+        <button id="start-btn" class="btn btn-primary">Start Recording</button>
+        <button id="stop-btn" class="btn btn-danger">Stop Recording</button>
+        <button id="upload-btn" class="btn btn-success">Upload Answer</button>
+
+        <div class="status" id="status-text">Ready</div>
+    </div>
+
+    <div class="container" id="success-screen">
+        <span class="confetti">🎉</span>
+        <h1>Upload Complete!</h1>
+        <p>Copy the link below and paste it into the Google Form.</p>
+        
+        <div class="link-box">
+            <input type="text" id="result-link" readonly>
+            <button class="copy-btn" onclick="copyLink()">Copy</button>
+        </div>
+
+        <button class="btn btn-close" onclick="window.close()">❌ Close Window</button>
+    </div>
+
+    <div style="margin-top: 20px; font-size: 12px; color: #9ca3af;">
+        <a href="/privacy.html" target="_blank" style="color: #9ca3af; text-decoration: underline;">Privacy Policy</a>
+    </div>
+
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+        
+        let mediaRecorder;
+        let recordedChunks = [];
+        const preview = document.getElementById('preview');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const statusText = document.getElementById('status-text');
+        
+        // Отримуємо параметри з URL (хеш або query)
+        function getParams() {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const id = params.get('id');
+            if (id) return { id };
+            
+            // Fallback для старих посилань
             const pathParts = window.location.pathname.split('/');
-            const potentialId = pathParts.pop();
-            if (potentialId && potentialId !== 'recorder.html') {
-                id = potentialId;
-            }
+            if (pathParts[1] === 'r' && pathParts[2]) return { id: pathParts[2] };
+            
+            return { id: null };
         }
 
-        if (!id) {
-            document.getElementById('loader').innerHTML = `<p style="color:red;">❌ No ID found. Please use the link from the form.</p>`;
-            return;
-        }
+        const { id } = getParams();
 
-        try {
-            const res = await fetch(`/api/link-info/${id}`);
-            if (!res.ok) throw new Error("Link not found");
-            const data = await res.json();
-            
-            targetEmail = data.email;
-            formTitle = data.formName;
-            
+        // 1. Отримуємо інформацію про лінк (email власника)
+        async function fetchLinkInfo() {
+            if (!id) return null;
             try {
-                document.getElementById('formName').innerText = decodeURIComponent(formTitle);
-            } catch(e) {
-                document.getElementById('formName').innerText = formTitle;
-            }
-
-            document.getElementById('loader-text').innerText = "Loading optimizer (30MB)...";
-            
-            // Завантаження FFmpeg (обов'язково з Headers від сервера!)
-            if (!ffmpeg.isLoaded()) await ffmpeg.load();
-
-            await initMedia();
-            
-            document.getElementById('loader').classList.add('hidden');
-            document.getElementById('app').style.display = 'flex';
-        } catch (e) {
-            document.getElementById('loader').innerHTML = `<p style="color:red; font-weight:bold;">❌ Invalid or Expired Link</p>`;
+                const res = await fetch(`/api/link-info/${id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.formName) document.getElementById('form-title').innerText = `📹 ${data.formName}`;
+                    return data;
+                }
+            } catch (e) { console.error(e); }
+            return null;
         }
-    }
 
-    async function initMedia() {
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        const constraints = currentMode === 'video' ? { video: { facingMode: "user" }, audio: true } : { video: false, audio: true };
-        try {
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-            const preview = document.getElementById('preview');
-            const visualizer = document.getElementById('audioVisualizer');
-            if (currentMode === 'video') {
-                preview.style.display = 'block'; visualizer.style.display = 'none';
-                preview.srcObject = stream; preview.muted = true;
-            } else {
-                preview.style.display = 'none'; visualizer.style.display = 'flex';
+        let linkInfo = null;
+        fetchLinkInfo().then(info => linkInfo = info);
+
+        // 2. Ініціалізація камери
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                preview.srcObject = stream;
+                preview.style.display = 'block';
+                
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) recordedChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    statusText.innerText = "Recording finished. Ready to upload.";
+                    startBtn.style.display = 'none';
+                    stopBtn.style.display = 'none';
+                    uploadBtn.style.display = 'block';
+                    
+                    uploadBtn.onclick = () => processAndUpload(blob);
+                };
+            } catch (e) {
+                statusText.innerText = "Error: Camera access denied.";
+                statusText.style.color = "red";
             }
-        } catch (err) { alert("Please allow camera/microphone access to record."); }
-    }
+        }
 
-    window.switchMode = (mode) => {
-        currentMode = mode;
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        event.target.classList.add('active');
-        initMedia();
-    };
-
-    function startRec() {
-        if (!stream) return initMedia();
-        recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = e => chunks.push(e.data);
-        recorder.start();
-        document.getElementById('controls-init').classList.add('hidden');
-        document.getElementById('controls-active').classList.remove('hidden');
-        document.querySelectorAll('.tab').forEach(t => t.style.pointerEvents = 'none');
-        document.querySelectorAll('.tab').forEach(t => t.style.opacity = '0.5');
-        if (currentMode === 'audio') document.querySelector('.audio-visual').classList.add('recording');
-        timerInterval = setInterval(() => {
-            seconds++;
-            document.getElementById('timer').innerText = new Date(seconds * 1000).toISOString().substr(14, 5);
-        }, 1000);
-    }
-
-    function stopRec() {
-        recorder.stop();
-        clearInterval(timerInterval);
-        document.getElementById('controls-active').classList.add('hidden');
-        document.getElementById('controls-review').classList.remove('hidden');
-        if (currentMode === 'audio') document.querySelector('.audio-visual').classList.remove('recording');
-        recorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            if (currentMode === 'video') {
-                const preview = document.getElementById('preview');
-                preview.srcObject = null; preview.src = url; preview.muted = false; preview.controls = true;
-            } else {
-                const audioPlayer = document.getElementById('audioReview');
-                audioPlayer.src = url; audioPlayer.style.display = 'block';
-            }
+        startBtn.onclick = () => {
+            recordedChunks = [];
+            mediaRecorder.start();
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'block';
+            statusText.innerText = "🔴 Recording...";
+            statusText.style.color = "red";
         };
-    }
 
-    async function processAndUpload() {
-        const btn = document.getElementById('sendBtn');
-        const status = document.getElementById('status');
-        btn.disabled = true;
-        try {
-            status.innerText = "⏳ Compressing & Optimizing...";
-            status.style.color = "#6366F1";
-            const webmBlob = new Blob(chunks, { type: 'video/webm' });
-            ffmpeg.FS('writeFile', 'input.webm', await fetchFile(webmBlob));
-            if (currentMode === 'video') await ffmpeg.run('-i', 'input.webm', '-vcodec', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
-            else await ffmpeg.run('-i', 'input.webm', '-vn', '-acodec', 'aac', 'output.mp4');
-            
-            const mp4Data = ffmpeg.FS('readFile', 'output.mp4');
-            const mp4Blob = new Blob([mp4Data.buffer], { type: 'video/mp4' });
+        stopBtn.onclick = () => {
+            mediaRecorder.stop();
+            preview.srcObject.getTracks().forEach(track => track.stop()); // Вимикаємо камеру
+        };
 
-            status.innerText = "🚀 Uploading to secure cloud...";
-            const fd = new FormData();
-            fd.append('file', mp4Blob, `rec_${Date.now()}.mp4`);
-            fd.append('folder', targetEmail);
-            fd.append('subfolder', formTitle);
+        async function processAndUpload(blob) {
+            statusText.innerText = "⏳ Compressing video... (Please wait)";
+            statusText.style.color = "#2563eb";
+            uploadBtn.disabled = true;
 
-            const uploadRes = await fetch('/api/upload-with-ai', { method: 'POST', body: fd });
-            if (!uploadRes.ok) throw new Error("Server Error");
-            const data = await uploadRes.json();
-
-            document.getElementById('recordingInterface').classList.add('hidden');
-            document.getElementById('mainHeader').classList.add('hidden');
-            document.getElementById('successView').classList.remove('hidden');
-            document.getElementById('shareLink').value = data.publicUrl;
-            document.getElementById('watchBtn').href = data.publicUrl;
-        } catch (e) {
-            status.innerText = "❌ Error: " + e.message;
-            status.style.color = "#ef4444";
-            btn.disabled = false;
+            try {
+                if (!ffmpeg.isLoaded()) await ffmpeg.load();
+                
+                ffmpeg.FS('writeFile', 'input.webm', await fetchFile(blob));
+                await ffmpeg.run('-i', 'input.webm', '-c:v', 'libx264', '-crf', '28', '-preset', 'ultrafast', 'output.mp4');
+                const data = ffmpeg.FS('readFile', 'output.mp4');
+                
+                const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+                uploadVideo(mp4Blob);
+            } catch (e) {
+                console.error(e);
+                statusText.innerText = "Compression failed. Uploading raw file...";
+                uploadVideo(blob); // Fallback
+            }
         }
-    }
 
-    function copyLink() {
-        const copyText = document.getElementById("shareLink");
-        copyText.select();
-        copyText.setSelectionRange(0, 99999);
-        navigator.clipboard.writeText(copyText.value);
-        const btn = document.querySelector('.btn-copy');
-        const originalText = btn.innerText;
-        btn.innerText = "Copied!";
-        btn.style.background = "#059669";
-        setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--success)"; }, 2000);
-    }
+        async function uploadVideo(blob) {
+            statusText.innerText = "🚀 Uploading...";
+            const formData = new FormData();
+            formData.append('file', blob, 'video.mp4');
+            
+            // Додаємо метадані
+            if (linkInfo) {
+                formData.append('folder', linkInfo.email); // Email власника форми
+                formData.append('subfolder', linkInfo.formName); // Назва форми
+            } else {
+                formData.append('folder', 'public');
+            }
 
-    init();
-</script>
+            try {
+                const res = await fetch('/api/upload-with-ai', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if (data.publicUrl) {
+                    showSuccess(data.publicUrl);
+                } else {
+                    throw new Error("Upload failed");
+                }
+            } catch (e) {
+                statusText.innerText = "Error uploading video.";
+                statusText.style.color = "red";
+                uploadBtn.disabled = false;
+            }
+        }
+
+        function showSuccess(url) {
+            document.getElementById('recorder-screen').style.display = 'none';
+            document.getElementById('success-screen').style.display = 'block';
+            document.getElementById('result-link').value = url;
+        }
+
+        window.copyLink = function() {
+            const copyText = document.getElementById("result-link");
+            copyText.select();
+            document.execCommand("copy");
+            
+            const btn = document.querySelector('.copy-btn');
+            btn.innerText = "Copied!";
+            btn.style.background = "#059669";
+            setTimeout(() => {
+                btn.innerText = "Copy";
+                btn.style.background = "#10b981";
+            }, 2000);
+        }
+
+        initCamera();
+    </script>
 </body>
 </html>
