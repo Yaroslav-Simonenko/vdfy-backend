@@ -143,9 +143,21 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
 
         let transcriptionText = "";
         try {
-            const transcription = await openai.audio.transcriptions.create({ file: fs.createReadStream(compressedPath), model: "whisper-1" });
+            const transcription = await openai.audio.transcriptions.create({
+                file: fs.createReadStream(compressedPath),
+                model: "whisper-1",
+                // ❌ language: "uk", // ПРИБИРАЄМО ЦЕ! Хай визначає сам.
+                
+                temperature: 0, // 🔥 СТАВИМО 0. Це змушує AI не фантазувати, а писати чітко те, що чує.
+                
+                // 👇 ХИТРИЙ ПРОМПТ: Ми пишемо початок речення різними мовами.
+                // Це "підказує" моделі, які мови очікувати, і пріоритезує Українську/Англійську над Російською.
+                prompt: "Hello, this is an interview answer. Доброго дня, це відповідь на співбесіду. Start." 
+            });
             transcriptionText = transcription.text;
-        } catch (e) { console.error("Whisper fail", e); }
+        } catch (e) { 
+            console.error("Whisper fail", e); 
+        }
 
         const r2Key = `users/${ownerEmail.replace(/[@.]/g, '_')}/${formName}/rec_${Date.now()}.mp4`;
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: r2Key, Body: fs.createReadStream(compressedPath), ContentType: "video/mp4" }));
