@@ -246,6 +246,56 @@ app.delete('/api/admin/delete-user', verifyToken, async (req, res) => {
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// ==================== ЗАХИЩЕНИЙ ПЕРЕГЛЯД ВІДЕО ====================
 
+// 1. Віддаємо HTML-сторінку перегляду
+app.get('/v/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'watch.html'));
+});
+
+// 2. API: Перевірка прав доступу і видача відео
+app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
+    try {
+        const videoId = req.params.id;
+        const requestingUserEmail = req.user.email.toLowerCase(); // Хто запитує
+
+        // Шукаємо запис у базі
+        const doc = await db.collection('shortLinks').doc(videoId).get();
+
+        if (!doc.exists) {
+            return res.status(404).json({ error: "Video not found" });
+        }
+
+        const videoData = doc.data();
+        const ownerEmail = videoData.email.toLowerCase(); // Власник відео
+
+        console.log(`🔍 Check Access: Request by [${requestingUserEmail}] for video of [${ownerEmail}]`);
+
+        // ⛔ ГОЛОВНА ПЕРЕВІРКА: Якщо імейли не співпадають — БАН
+        if (requestingUserEmail !== ownerEmail) {
+            return res.status(403).json({ error: "⛔ Access Denied. Only the form creator can view this video." });
+        }
+
+        // ✅ Якщо співпадають — віддаємо посилання
+        let transcriptionText = "";
+        try {
+            // Спробуємо дістати текст, якщо він є
+            const textUrl = videoData.url.replace('.mp4', '.txt');
+            const txtRes = await fetch(textUrl);
+            if (txtRes.ok) transcriptionText = await txtRes.text();
+        } catch (e) {}
+
+        res.json({
+            url: videoData.url,
+            transcription: transcriptionText,
+            formName: videoData.formName,
+            createdAt: videoData.createdAt
+        });
+
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Server error" });
+    }
+});
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 serverInstance.setTimeout(600000);
