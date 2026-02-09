@@ -298,4 +298,4 @@ app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
     }
 });
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
-serverInstance.setTimeout(600000);
+serverInstance.setTimeout(600000); 
