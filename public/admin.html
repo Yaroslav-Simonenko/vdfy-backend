@@ -101,13 +101,13 @@
     <script>
         // 👇👇👇 ВСТАВ СЮДИ СВОЇ ДАНІ (ТІ САМІ ЩО В DASHBOARD) 👇👇👇
          const firebaseConfig = {
-    apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
-    authDomain: "vdfy-auth-system.firebaseapp.com",
-    projectId: "vdfy-auth-system",
-    storageBucket: "vdfy-auth-system.firebasestorage.app",
-    messagingSenderId: "381929137400",
-    appId: "1:381929137400:web:661c3b07907e639fa5070d"
-  };
+            apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
+            authDomain: "vdfy-auth-system.firebaseapp.com",
+            projectId: "vdfy-auth-system",
+            storageBucket: "vdfy-auth-system.firebasestorage.app",
+            messagingSenderId: "381929137400",
+            appId: "1:381929137400:web:661c33b07907e639fa5070d"
+        };
         // 👆👆👆
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -117,19 +117,16 @@
         // 1. АВТОМАТИЧНА ПЕРЕВІРКА ПРИ ЗАВАНТАЖЕННІ
         auth.onAuthStateChanged(user => {
             if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-                // Якщо це адмін - показуємо панель
                 showAdminPanel(user);
             } else {
-                // Якщо це не адмін або ніхто - показуємо вхід
                 showLoginScreen();
                 if (user) {
                     console.warn("Unauthorized access attempt by:", user.email);
-                    auth.signOut(); // Викидаємо чужаків
+                    auth.signOut();
                 }
             }
         });
 
-        // 2. ЛОГІКА ВХОДУ (LOGIN)
         async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('email').value;
@@ -141,13 +138,11 @@
             err.classList.add('hidden');
 
             try {
-                // Перевірка: чи це взагалі адмінська пошта?
                 if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
                     throw new Error("Ця пошта не має прав адміністратора.");
                 }
 
                 await auth.signInWithEmailAndPassword(email, password);
-                // onAuthStateChanged спрацює автоматично і відкриє панель
             
             } catch (error) {
                 console.error(error);
@@ -162,7 +157,6 @@
             document.getElementById('admin-panel').classList.remove('hidden');
             document.getElementById('admin-display-email').innerText = user.email;
             
-            // Завантажуємо дані
             loadVideos(); 
             loadClients();
         }
@@ -177,59 +171,97 @@
             window.location.reload();
         }
 
-        // 3. ЛОГІКА ПАПОК (ВІДЕО)
+        // 🔥🔥🔥 ОНОВЛЕНА ФУНКЦІЯ: ГРУПУВАННЯ ПО ЮЗЕРУ -> ПАПЦІ 🔥🔥🔥
         async function loadVideos() {
             const token = await auth.currentUser.getIdToken();
             const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
             const data = await res.json();
             
-            // ГРУПУВАННЯ ПО ЮЗЕРАХ (ВЛАСНИКАХ)
-            const grouped = {};
+            // 1. Створюємо структуру: { 'user@email': { 'FormName1': [vid1, vid2], 'FormName2': [vid3] } }
+            const structuredData = {};
+            
             data.videos.forEach(vid => {
-                if (!grouped[vid.owner]) grouped[vid.owner] = [];
-                grouped[vid.owner].push(vid);
+                const owner = vid.owner;
+                const formName = vid.formName || "General";
+
+                // Якщо юзера ще немає - створюємо об'єкт для нього
+                if (!structuredData[owner]) {
+                    structuredData[owner] = {};
+                }
+                
+                // Якщо папки ще немає - створюємо масив для неї
+                if (!structuredData[owner][formName]) {
+                    structuredData[owner][formName] = [];
+                }
+
+                // Додаємо відео
+                structuredData[owner][formName].push(vid);
             });
 
             const container = document.getElementById('folders-container');
             container.innerHTML = '';
 
-            // Рендер кожної "Папки"
-            Object.keys(grouped).forEach(owner => {
-                const videos = grouped[owner];
-                const folder = document.createElement('details');
-                folder.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group";
-                
-                let videosHTML = `<div class="p-4 bg-gray-50 grid grid-cols-1 md:grid-cols-3 gap-4">`;
-                videos.forEach(vid => {
-                    videosHTML += `
-                        <div class="bg-white p-3 rounded shadow border border-gray-100">
-                            <div class="flex justify-between mb-2">
-                                <span class="text-xs font-bold text-gray-600 truncate w-32">${vid.formName}</span>
-                                <a href="${vid.url}" target="_blank" class="text-blue-500 text-xs">Play ▶</a>
-                            </div>
-                            <video src="${vid.url}" controls class="w-full h-24 bg-black rounded"></video>
-                            <div class="mt-2 flex justify-end">
-                                <button onclick="deleteVideo('${vid.key}')" class="text-red-500 text-xs hover:text-red-700">🗑 Видалити</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                videosHTML += `</div>`;
+            // 2. Рендеримо ЮЗЕРІВ
+            Object.keys(structuredData).forEach(owner => {
+                const userFolders = structuredData[owner]; // Це об'єкт з папками цього юзера
+                const totalVideos = Object.values(userFolders).flat().length; // Рахуємо заг. кількість
 
-                folder.innerHTML = `
+                const userDetails = document.createElement('details');
+                userDetails.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group";
+                
+                // Заголовок Юзера (Email)
+                let contentHTML = `
                     <summary class="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition select-none">
                         <div class="flex items-center gap-3">
-                            <span class="text-2xl">📁</span>
+                            <span class="text-2xl">👤</span>
                             <div>
                                 <h3 class="font-bold text-gray-800">${owner}</h3>
-                                <p class="text-xs text-gray-500">${videos.length} файлів</p>
+                                <p class="text-xs text-gray-500">Всього відео: ${totalVideos}</p>
                             </div>
                         </div>
                         <span class="text-gray-400 transform group-open:rotate-180 transition">▼</span>
                     </summary>
-                    ${videosHTML}
+                    <div class="p-4 bg-gray-50 space-y-4">
                 `;
-                container.appendChild(folder);
+
+                // 3. Рендеримо ПАПКИ всередині юзера
+                Object.keys(userFolders).forEach(folderName => {
+                    const videos = userFolders[folderName];
+
+                    contentHTML += `
+                        <div class="border border-blue-100 rounded-lg bg-white overflow-hidden shadow-sm">
+                            <div class="bg-blue-50 px-4 py-2 border-b border-blue-100 flex items-center gap-2">
+                                <span class="text-lg">📁</span>
+                                <span class="font-bold text-blue-800 text-sm">${folderName}</span>
+                                <span class="text-xs text-blue-400 bg-white px-2 py-0.5 rounded-full border border-blue-100">${videos.length}</span>
+                            </div>
+                            
+                            <div class="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    `;
+
+                    // 4. Рендеримо ВІДЕО всередині папки
+                    videos.forEach(vid => {
+                        contentHTML += `
+                            <div class="bg-white p-2 rounded border border-gray-200 shadow-sm relative group/vid">
+                                <div class="flex justify-between mb-1 items-center">
+                                    <span class="text-[10px] text-gray-400">${new Date(vid.uploadedAt).toLocaleDateString()}</span>
+                                    <a href="${vid.url}" target="_blank" class="text-blue-500 text-xs hover:underline">Open ↗</a>
+                                </div>
+                                <video src="${vid.url}" controls class="w-full h-20 bg-black rounded object-cover"></video>
+                                <button onclick="deleteVideo('${vid.key}')" class="mt-2 w-full text-center text-xs text-red-400 hover:text-red-600 hover:bg-red-50 py-1 rounded transition">🗑 Видалити</button>
+                            </div>
+                        `;
+                    });
+
+                    contentHTML += `
+                            </div>
+                        </div>
+                    `;
+                });
+
+                contentHTML += `</div>`; // Закриваємо контейнер юзера
+                userDetails.innerHTML = contentHTML;
+                container.appendChild(userDetails);
             });
         }
 
@@ -241,10 +273,10 @@
                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                  body: JSON.stringify({ videoKey: key })
             });
-            loadVideos(); // Перезавантажити список
+            loadVideos(); 
         }
 
-        // 4. КЛІЄНТИ (Логіка без змін, але прихована за табом)
+        // --- КЛІЄНТИ ---
         async function loadClients() {
             const token = await auth.currentUser.getIdToken();
             try {
@@ -275,31 +307,27 @@
         }
 
         async function toggleUser(uid, shouldBlock) {
-    let reason = "";
+            let reason = "";
+            if (shouldBlock) {
+                reason = prompt("Вкажіть причину блокування:");
+                if (reason === null) return;
+                if (reason.trim() === "") reason = "Без причини";
+            } else {
+                if (!confirm("Розблокувати цього користувача?")) return;
+            }
+            
+            const user = firebase.auth().currentUser;
+            const token = await user.getIdToken();
 
-    if (shouldBlock) {
-        // Запитуємо причину
-        reason = prompt("Вкажіть причину блокування (або залиште пустим):");
-        if (reason === null) return; // Якщо натиснув "Скасувати" - нічого не робимо
-        if (reason.trim() === "") reason = "Без причини";
-    } else {
-        if (!confirm("Розблокувати цього користувача?")) return;
-    }
-    
-    const user = firebase.auth().currentUser;
-    const token = await user.getIdToken();
-
-    try {
-        await fetch('/api/admin/toggle-user', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ uid, disabled: shouldBlock, reason: reason })
-        });
-        loadClients(); // Оновлюємо таблицю
-    } catch (e) {
-        alert("Помилка: " + e.message);
-    }
-}
+            try {
+                await fetch('/api/admin/toggle-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ uid, disabled: shouldBlock, reason: reason })
+                });
+                loadClients();
+            } catch (e) { alert("Помилка: " + e.message); }
+        }
 
         async function deleteUser(uid) {
             if(!confirm("Видалити юзера назавжди?")) return;
