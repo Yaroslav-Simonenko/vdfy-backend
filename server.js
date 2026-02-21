@@ -49,8 +49,10 @@ const verifyToken = async (req, res, next) => {
 // ==================================================================
 // 🔥 ВИПРАВЛЕНИЙ ПОРЯДОК МАРШРУТІВ (Це вирішує ваші помилки) 🔥
 // ==================================================================
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-app.get('/', (req, res) => res.send('✅ VDFY Server Ready'));
 
 // 1. RECORDER: Обов'язково з enableIsolation (Вирішує помилку SharedArrayBuffer)
 app.get('/recorder.html', enableIsolation, (req, res) => {
