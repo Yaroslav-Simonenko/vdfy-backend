@@ -95,11 +95,12 @@ app.post('/api/sync-link', async (req, res) => {
                     displayName: email.split('@')[0] // Тимчасове ім'я до знака @
                 });
                 
-                // Додаємо запис у Firestore (щоб можна було банити)
+                // Додаємо запис у Firestore + Гаманець
                 await db.collection('users').doc(newUser.uid).set({
                     email: email,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    isBanned: false
+                    isBanned: false,
+                    balance: 0 // 💰 Створюємо нульовий баланс для нових користувачів
                 });
             }
         }
