@@ -221,6 +221,14 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
+        // 👇 ВИПРАВЛЕННЯ: Оголошуємо змінні ДО того, як запускаємо переклад
+        let groupedData = {};
+        const loginScreen = document.getElementById('login-screen');
+        const foldersContainer = document.getElementById('folders-container');
+        const videosContainer = document.getElementById('videos-container');
+        const folderNav = document.getElementById('folder-nav');
+        const pageTitle = document.getElementById('page-title');
+
         // ==================== I18N (ПЕРЕКЛАДИ) ====================
         const translations = {
             en: {
@@ -240,7 +248,6 @@
                 aiInsightTitle: "🤖 AI Insight",
                 aiInsightDesc: "Select a recording to generate a summary.",
                 
-                // Dynamic JS texts
                 jsNoRecordings: "No recordings found.",
                 jsVideo: "video",
                 jsVideos: "videos",
@@ -273,7 +280,6 @@
                 aiInsightTitle: "🤖 AI Аналіз",
                 aiInsightDesc: "Оберіть запис, щоб згенерувати підсумок.",
                 
-                // Dynamic JS texts
                 jsNoRecordings: "Записів не знайдено.",
                 jsVideo: "відео",
                 jsVideos: "відео",
@@ -291,19 +297,18 @@
             }
         };
 
-        // Завантажуємо мову з пам'яті (за замовчуванням 'en')
         let currentLang = localStorage.getItem('vdfy_lang') || 'en';
         document.getElementById('lang-select').value = currentLang;
 
         function applyTranslations() {
-            // Оновлюємо статичні елементи з data-i18n
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (translations[currentLang][key]) {
                     el.innerHTML = translations[currentLang][key];
                 }
             });
-            // Оновлюємо заголовок сторінки, якщо ми на головній
+            
+            // Змінюємо заголовок сторінки без помилки!
             if (!document.getElementById('tab-videos').classList.contains('hidden') && document.getElementById('folder-nav').classList.contains('hidden')) {
                 pageTitle.innerText = translations[currentLang].titleFolders;
             } else if (!document.getElementById('tab-analytics').classList.contains('hidden')) {
@@ -311,13 +316,11 @@
             }
         }
 
-        // Глобальна функція зміни мови (викликається з HTML select)
         window.changeLanguage = (lang) => {
             currentLang = lang;
             localStorage.setItem('vdfy_lang', lang);
             applyTranslations();
             
-            // Якщо юзер залогінений, перемальовуємо дані щоб застосувати переклад до карток
             if (auth.currentUser && !document.getElementById('folders-container').classList.contains('hidden')) {
                 renderFolders();
             } else if (auth.currentUser && !document.getElementById('videos-container').classList.contains('hidden')) {
@@ -326,17 +329,9 @@
             }
         };
 
-        // Застосовуємо переклад при старті
+        // Запускаємо переклад ТІЛЬКИ після того, як змінні оголошені
         applyTranslations();
         // ==========================================================
-
-        let groupedData = {};
-
-        const loginScreen = document.getElementById('login-screen');
-        const foldersContainer = document.getElementById('folders-container');
-        const videosContainer = document.getElementById('videos-container');
-        const folderNav = document.getElementById('folder-nav');
-        const pageTitle = document.getElementById('page-title');
 
         document.getElementById('login-btn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
         
@@ -430,7 +425,7 @@
 
         window.openFolder = (folderName) => {
             const videos = groupedData[folderName];
-            const t = translations[currentLang]; // shorthand for translations
+            const t = translations[currentLang];
             
             videosContainer.innerHTML = videos.map(v => `
                 <div class="card">
