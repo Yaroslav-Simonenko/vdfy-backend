@@ -332,8 +332,9 @@ app.post('/api/admin/add-balance', async (req, res) => {
     try {
         const { adminKey, email, amount } = req.body;
         
-        // 🔴 ВАЖЛИВО: Придумай свій пароль і впиши його замість "12345"
-        if (adminKey !== "12345") {
+        // ✅ Читаємо пароль із безпечних змінних сервера
+        const SECRET = process.env.ADMIN_SECRET_KEY || "fallback_pass_123";
+        if (adminKey !== SECRET) {
             return res.status(403).json({ error: "Невірний пароль адміністратора" });
         }
 

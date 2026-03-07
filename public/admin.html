@@ -125,14 +125,19 @@
         const ADMIN_EMAIL = "simonenkoyaroslav2008@gmail.com"; 
 
         auth.onAuthStateChanged(user => {
-            if (user && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
-                showAdminPanel(user);
+            if (user) {
+                if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+                    showAdminPanel(user);
+                } else {
+                    // Юзер залогінений, але це НЕ адмін. 
+                    // Просто показуємо екран входу, АЛЕ НЕ РОБИМО signOut(), щоб не зламати дашборд.
+                    showLoginScreen();
+                    const err = document.getElementById('login-error');
+                    err.innerText = "Цей акаунт не має прав адміністратора.";
+                    err.classList.remove('hidden');
+                }
             } else {
                 showLoginScreen();
-                if (user) {
-                    console.warn("Unauthorized:", user.email);
-                    auth.signOut();
-                }
             }
         });
 
