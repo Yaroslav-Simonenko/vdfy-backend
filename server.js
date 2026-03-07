@@ -312,5 +312,68 @@ app.get('/api/get-secure-video/:id', verifyToken, async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 });
+// ==================== ФІНАНСИ ТА БАЛАНС ====================
+
+// 1. Отримати поточний баланс користувача
+app.get('/api/user/balance', verifyToken, async (req, res) => {
+    try {
+        const doc = await db.collection('users').doc(req.user.uid).get();
+        // Якщо балансу ще немає, віддаємо 0
+        const balance = doc.exists && doc.data().balance ? doc.data().balance : 0;
+        res.json({ balance });
+    } catch (e) {
+        console.error("Помилка отримання балансу:", e);
+        res.status(500).json({ error: "Не вдалося отримати баланс" });
+    }
+});
+
+// 2. Ручне поповнення (ТІЛЬКИ ДЛЯ АДМІНА)
+app.post('/api/admin/add-balance', async (req, res) => {
+    try {
+        const { adminKey, email, amount } = req.body;
+        
+        // 🔴 ВАЖЛИВО: Придумай свій пароль і впиши його замість "12345"
+        if (adminKey !== "12345") {
+            return res.status(403).json({ error: "Невірний пароль адміністратора" });
+        }
+
+        if (!email || !amount) {
+            return res.status(400).json({ error: "Вкажіть email та суму" });
+        }
+
+        // Шукаємо юзера за email у базі Firebase
+        const usersRef = db.collection('users');
+        const snapshot = await usersRef.where('email', '==', email).get();
+
+        if (snapshot.empty) {
+            return res.status(404).json({ error: "Користувача з таким email не знайдено" });
+        }
+
+        const userDoc = snapshot.docs[0];
+        const uid = userDoc.id;
+        const numAmount = parseFloat(amount); // Переводимо текст у число
+
+        // Оновлюємо баланс (додаємо суму до існуючої)
+        await usersRef.doc(uid).set({
+            balance: admin.firestore.FieldValue.increment(numAmount)
+        }, { merge: true });
+
+        // Записуємо транзакцію для історії
+        await db.collection('transactions').add({
+            invoiceId: `manual_${Date.now()}`,
+            uid: uid,
+            email: email,
+            type: 'manual',
+            amountUsd: numAmount,
+            status: 'success',
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        res.json({ success: true, message: `Баланс ${email} успішно поповнено на $${numAmount}` });
+    } catch (e) {
+        console.error("Помилка ручного поповнення:", e);
+        res.status(500).json({ error: "Помилка сервера" });
+    }
+});
 const serverInstance = app.listen(process.env.PORT || 3000, '0.0.0.0', () => console.log("🚀 Server running"));
 serverInstance.setTimeout(600000); 

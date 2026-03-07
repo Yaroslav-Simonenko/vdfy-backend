@@ -7,7 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <style>
-        .active-tab { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .active-tab { border-bottom: 2px solid #2563eb; color: #2563eb !important; }
         details > summary { list-style: none; cursor: pointer; }
         details > summary::-webkit-details-marker { display: none; }
         
@@ -51,6 +51,7 @@
         <div class="max-w-7xl mx-auto mt-6 px-6 border-b border-gray-300 flex gap-8">
             <button onclick="switchTab('videos')" id="tab-videos" class="pb-3 px-2 font-medium text-gray-500 active-tab flex items-center gap-2">📂 Папки користувачів</button>
             <button onclick="switchTab('clients')" id="tab-clients" class="pb-3 px-2 font-medium text-gray-500 hover:text-gray-700 flex items-center gap-2">👥 База клієнтів</button>
+            <button onclick="switchTab('finance')" id="tab-finance" class="pb-3 px-2 font-medium text-gray-500 hover:text-gray-700 flex items-center gap-2">💰 Управління фінансами</button>
         </div>
 
         <div class="max-w-7xl mx-auto p-6">
@@ -79,12 +80,37 @@
                     </table>
                 </div>
             </div>
+
+            <div id="view-finance" class="hidden">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 max-w-lg mt-2">
+                    <h2 class="text-xl font-bold text-green-600 mb-2 flex items-center gap-2">💰 Нарахувати баланс</h2>
+                    <p class="text-gray-500 text-sm mb-6">Ручне поповнення віртуального рахунку клієнта (в USD).</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email клієнта</label>
+                            <input type="email" id="finance-email" placeholder="example@mail.com" class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Сума (USD)</label>
+                            <input type="number" id="finance-amount" placeholder="Наприклад: 10" step="0.1" class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Адмін-пароль</label>
+                            <input type="password" id="finance-pass" placeholder="Секретний ключ з server.js" class="w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-green-500 outline-none">
+                        </div>
+                        
+                        <button onclick="addBalance()" class="w-full bg-green-600 text-white py-3 mt-2 rounded-md hover:bg-green-700 font-bold transition">Нарахувати кошти</button>
+                    </div>
+                    <div id="finance-status" class="mt-4 font-medium text-center"></div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         // 👇👇👇 КОНФІГ 👇👇👇
-         const firebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyDBUbYLkuMMQaKHomNursjJ1zoFNtIZjy4",
             authDomain: "vdfy-auth-system.firebaseapp.com",
             projectId: "vdfy-auth-system",
@@ -148,7 +174,6 @@
             window.location.reload();
         }
 
-        // 🔥🔥🔥 ОНОВЛЕНА ЛОГІКА ЗГОРТАННЯ 🔥🔥🔥
         async function loadVideos() {
             const token = await auth.currentUser.getIdToken();
             const res = await fetch('/api/my-videos', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -170,7 +195,6 @@
                 const userFolders = structuredData[owner];
                 const totalVideos = Object.values(userFolders).flat().length;
 
-                // 1. ГОЛОВНИЙ КОНТЕЙНЕР (ЮЗЕР)
                 const userDetails = document.createElement('details');
                 userDetails.className = "bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group mb-4";
                 
@@ -188,11 +212,9 @@
                     <div class="p-4 bg-gray-50 space-y-3 border-t border-gray-100">
                 `;
 
-                // 2. ВНУТРІШНІ КОНТЕЙНЕРИ (ПАПКИ)
                 Object.keys(userFolders).forEach(folderName => {
                     const videos = userFolders[folderName];
 
-                    // Додаємо class="group/folder" для вкладеної анімації стрілочки
                     contentHTML += `
                         <details class="border border-blue-200 rounded-md bg-white overflow-hidden shadow-sm group/folder">
                             <summary class="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center justify-between cursor-pointer select-none hover:bg-blue-100 transition">
@@ -203,7 +225,6 @@
                                 </div>
                                 <span class="text-blue-400 text-xs transform group-open/folder:rotate-180 transition duration-200">▼</span>
                             </summary>
-                            
                             <div class="p-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-white">
                     `;
 
@@ -292,13 +313,59 @@
             loadClients();
         }
 
+        // 🔥 ЛОГІКА ПЕРЕКЛЮЧЕННЯ ВКЛАДОК
         function switchTab(tab) {
-            document.getElementById('view-videos').classList.add('hidden');
-            document.getElementById('view-clients').classList.add('hidden');
-            document.getElementById('tab-videos').classList.remove('active-tab');
-            document.getElementById('tab-clients').classList.remove('active-tab');
+            const tabs = ['videos', 'clients', 'finance'];
+            
+            tabs.forEach(t => {
+                // Ховаємо всі контейнери
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                
+                // Скидаємо стилі всіх кнопок
+                const btn = document.getElementById(`tab-${t}`);
+                btn.classList.remove('active-tab');
+            });
+
+            // Показуємо потрібний контейнер і додаємо стиль активній кнопці
             document.getElementById(`view-${tab}`).classList.remove('hidden');
             document.getElementById(`tab-${tab}`).classList.add('active-tab');
+        }
+
+        // 🔥 ЛОГІКА ПОПОВНЕННЯ ФІНАНСІВ
+        async function addBalance() {
+            const email = document.getElementById('finance-email').value;
+            const amount = document.getElementById('finance-amount').value;
+            const adminKey = document.getElementById('finance-pass').value;
+            const statusEl = document.getElementById('finance-status');
+
+            if(!email || !amount || !adminKey) {
+                alert("Заповніть всі поля!");
+                return;
+            }
+
+            statusEl.textContent = "⏳ Нарахування...";
+            statusEl.className = "mt-4 font-medium text-center text-blue-600";
+
+            try {
+                const res = await fetch('/api/admin/add-balance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminKey, email, amount })
+                });
+                const data = await res.json();
+
+                if(data.success) {
+                    statusEl.textContent = "✅ " + data.message;
+                    statusEl.className = "mt-4 font-medium text-center text-green-600";
+                    document.getElementById('finance-amount').value = ''; // Очищаємо суму
+                } else {
+                    statusEl.textContent = "❌ " + data.error;
+                    statusEl.className = "mt-4 font-medium text-center text-red-600";
+                }
+            } catch(e) {
+                statusEl.textContent = "❌ Помилка з'єднання із сервером";
+                statusEl.className = "mt-4 font-medium text-center text-red-600";
+            }
         }
     </script>
 </body>

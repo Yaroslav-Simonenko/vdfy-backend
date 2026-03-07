@@ -164,6 +164,10 @@
             <b data-i18n="linkedAcc">Linked Account:</b><br>
             <span id="user-email" data-i18n="loading">Loading...</span>
         </div>
+        <div class="id-box" style="margin-top: -10px; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">
+            <b data-i18n="balanceText">Balance:</b><br>
+            <span id="user-balance" style="font-size: 18px; font-weight: 800;">$0.00</span>
+        </div>
 
         <div class="nav-item active" onclick="switchTab('videos')" data-i18n="tabRecordings">📁 Recordings</div>
         <div class="nav-item" onclick="switchTab('analytics')" data-i18n="tabAnalytics">📊 AI Analytics</div>
@@ -221,7 +225,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
-        // 👇 ВИПРАВЛЕННЯ: Оголошуємо змінні ДО того, як запускаємо переклад
         let groupedData = {};
         const loginScreen = document.getElementById('login-screen');
         const foldersContainer = document.getElementById('folders-container');
@@ -234,6 +237,7 @@
             en: {
                 signIn: "Sign in with Google",
                 linkedAcc: "Linked Account:",
+                balanceText: "Balance:", 
                 loading: "Loading...",
                 tabRecordings: "📁 Recordings",
                 tabAnalytics: "📊 AI Analytics",
@@ -266,6 +270,7 @@
             uk: {
                 signIn: "Увійти через Google",
                 linkedAcc: "Ваш акаунт:",
+                balanceText: "Баланс:", 
                 loading: "Завантаження...",
                 tabRecordings: "📁 Записи",
                 tabAnalytics: "📊 AI Аналітика",
@@ -308,7 +313,6 @@
                 }
             });
             
-            // Змінюємо заголовок сторінки без помилки!
             if (!document.getElementById('tab-videos').classList.contains('hidden') && document.getElementById('folder-nav').classList.contains('hidden')) {
                 pageTitle.innerText = translations[currentLang].titleFolders;
             } else if (!document.getElementById('tab-analytics').classList.contains('hidden')) {
@@ -329,7 +333,6 @@
             }
         };
 
-        // Запускаємо переклад ТІЛЬКИ після того, як змінні оголошені
         applyTranslations();
         // ==========================================================
 
@@ -359,7 +362,9 @@
                 document.getElementById('user-name').textContent = user.displayName;
                 document.getElementById('user-avatar').src = user.photoURL;
                 document.getElementById('user-email').textContent = user.email;
+                
                 loadVideos(user);
+                loadBalance(user); // ЗАВАНТАЖЕННЯ БАЛАНСУ
             } else {
                 loginScreen.classList.remove('hidden');
                 document.getElementById('ban-overlay').style.display = 'none';
@@ -520,6 +525,20 @@
                 pageTitle.innerText = translations[currentLang].tabAnalytics.replace('📊 ', '');
             }
         };
+
+        async function loadBalance(user) {
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch('/api/user/balance', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                document.getElementById('user-balance').textContent = `$${parseFloat(data.balance).toFixed(2)}`;
+            } catch (e) {
+                console.error("Не вдалося завантажити баланс:", e);
+            }
+        }
     </script>
 </body>
 </html>
