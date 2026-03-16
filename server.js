@@ -332,8 +332,8 @@ app.post('/api/admin/add-balance', async (req, res) => {
     try {
         const { adminKey, email, amount } = req.body;
         
-        // ✅ Читаємо пароль із безпечних змінних сервера
-        const SECRET = process.env.ADMIN_SECRET_KEY || "fallback_pass_123";
+        // Читаємо пароль із безпечних змінних сервера (або використовуємо запасний)
+        const SECRET = process.env.ADMIN_SECRET_KEY || "12345";
         if (adminKey !== SECRET) {
             return res.status(403).json({ error: "Невірний пароль адміністратора" });
         }
@@ -342,28 +342,28 @@ app.post('/api/admin/add-balance', async (req, res) => {
             return res.status(400).json({ error: "Вкажіть email та суму" });
         }
 
-        // Шукаємо юзера за email у базі Firebase
-        const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('email', '==', email).get();
-
-        if (snapshot.empty) {
-            return res.status(404).json({ error: "Користувача з таким email не знайдено" });
+        let uid;
+        try {
+            // 🔥 ШУКАЄМО В AUTH, А НЕ В БАЗІ (Це надійніше на 100%)
+            const userRecord = await admin.auth().getUserByEmail(email);
+            uid = userRecord.uid;
+        } catch (error) {
+            return res.status(404).json({ error: "Користувача з таким email не знайдено в системі Firebase" });
         }
 
-        const userDoc = snapshot.docs[0];
-        const uid = userDoc.id;
-        const numAmount = parseFloat(amount); // Переводимо текст у число
+        const numAmount = parseFloat(amount);
 
-        // Оновлюємо баланс (додаємо суму до існуючої)
-        await usersRef.doc(uid).set({
-            balance: admin.firestore.FieldValue.increment(numAmount)
+        // 🔥 Оновлюємо баланс. { merge: true } створить запис, якщо його ще не було!
+        await db.collection('users').doc(uid).set({
+            balance: admin.firestore.FieldValue.increment(numAmount),
+            email: email.toLowerCase() // Зберігаємо email для порядку
         }, { merge: true });
 
         // Записуємо транзакцію для історії
         await db.collection('transactions').add({
             invoiceId: `manual_${Date.now()}`,
             uid: uid,
-            email: email,
+            email: email.toLowerCase(),
             type: 'manual',
             amountUsd: numAmount,
             status: 'success',
