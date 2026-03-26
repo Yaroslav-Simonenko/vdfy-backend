@@ -139,6 +139,31 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
         const ownerEmail = req.body.folder ? req.body.folder.toLowerCase() : "public"; 
         const formName = sanitize(decodeURIComponent(req.body.subfolder || "General"));
         
+        // ==========================================================
+        // 🔥 БІЛІНГ: ПЕРЕВІРКА БАЛАНСУ ПЕРЕД ОБРОБКОЮ
+        // ==========================================================
+        let ownerUid = null;
+        if (ownerEmail !== "public") {
+            try {
+                const ownerRecord = await admin.auth().getUserByEmail(ownerEmail);
+                ownerUid = ownerRecord.uid;
+                const ownerDoc = await db.collection('users').doc(ownerUid).get();
+                const balance = ownerDoc.exists && ownerDoc.data().balance ? ownerDoc.data().balance : 0;
+
+                if (balance < 0.5) {
+                    // Грошей немає! Видаляємо файл і блокуємо обробку
+                    if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                    console.log(`⛔ Недостатньо коштів у ${ownerEmail} (Баланс: $${balance})`);
+                    return res.status(402).json({ error: "Not enough balance. Form owner needs to top up." });
+                }
+            } catch (error) {
+                console.log(`⚠️ Власника форми ${ownerEmail} не знайдено в базі.`);
+                if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                return res.status(404).json({ error: "Form owner not found." });
+            }
+        }
+        // ==========================================================
+
         if (req.file.mimetype === 'video/mp4') fs.copyFileSync(tempPath, compressedPath);
         else await new Promise((resolve, reject) => {
             ffmpeg(tempPath).outputOptions(['-vcodec libx264', '-crf 28', '-preset veryfast', '-acodec aac']).save(compressedPath).on('end', resolve).on('error', reject);
@@ -149,12 +174,7 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
             const transcription = await openai.audio.transcriptions.create({
                 file: fs.createReadStream(compressedPath),
                 model: "whisper-1",
-                // ❌ language: "uk", // ПРИБИРАЄМО ЦЕ! Хай визначає сам.
-                
-                temperature: 0, // 🔥 СТАВИМО 0. Це змушує AI не фантазувати, а писати чітко те, що чує.
-                
-                // 👇 ХИТРИЙ ПРОМПТ: Ми пишемо початок речення різними мовами.
-                // Це "підказує" моделі, які мови очікувати, і пріоритезує Українську/Англійську над Російською.
+                temperature: 0,
                 prompt: "Hello, this is an interview answer. Доброго дня, це відповідь на співбесіду. Start." 
             });
             transcriptionText = transcription.text;
@@ -172,11 +192,33 @@ app.post('/api/upload-with-ai', upload.single('file'), async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        // ==========================================================
+        // 🔥 БІЛІНГ: СПИСАННЯ ГРОШЕЙ ПІСЛЯ УСПІШНОГО ЗБЕРЕЖЕННЯ
+        // ==========================================================
+        if (ownerUid) {
+            await db.collection('users').doc(ownerUid).set({
+                balance: admin.firestore.FieldValue.increment(-0.5)
+            }, { merge: true });
+
+            await db.collection('transactions').add({
+                invoiceId: `spend_${Date.now()}_${shortId}`,
+                uid: ownerUid,
+                email: ownerEmail,
+                type: 'spend',
+                amountUsd: -0.5,
+                status: 'success',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+            console.log(`✅ Списано $0.5 з балансу ${ownerEmail} за відео ${shortId}`);
+        }
+        // ==========================================================
+
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         if (fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
         res.json({ publicUrl: `https://${req.headers.host}/v/${shortId}`, transcription: transcriptionText });
     } catch (e) { 
         if (tempPath && fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        if (compressedPath && fs.existsSync(compressedPath)) fs.unlinkSync(compressedPath);
         res.status(500).json({ error: e.message }); 
     }
 });
@@ -246,11 +288,23 @@ app.post('/api/analyze-text', verifyToken, async (req, res) => {
     try {
         const textRes = await fetch(req.body.textUrl);
         const textContent = await textRes.text();
+
         const gpt = await openai.chat.completions.create({
-            model: "gpt-4o-mini", messages: [{ role: "system", content: "Summarize interview." }, { role: "user", content: textContent }]
+            model: "gpt-4o-mini",
+            messages: [
+                { 
+                    role: "system", 
+                    // 🔥 Універсальний промпт, який адаптується під мову кандидата
+                    content: "You are a professional HR assistant. Your ONLY task is to analyze the provided interview transcript and write a concise, objective summary of the candidate's answer. STRICT RULES: 1. Do not engage in conversation, do not use greetings or pleasantries. 2. You MUST write the summary in the EXACT SAME LANGUAGE as the provided text. If the text is in English, reply in English. If Ukrainian, reply in Ukrainian, etc." 
+                }, 
+                { role: "user", content: textContent }
+            ]
         });
         res.json({ analysis: gpt.choices[0].message.content });
-    } catch (error) { res.status(500).json({ error: "AI Failed" }); }
+    } catch (error) {
+        console.error("AI failed:", error);
+        res.status(500).json({ error: "AI Failed" });
+    }
 });
 
 app.delete('/api/admin/delete-user', verifyToken, async (req, res) => {
